@@ -55,10 +55,6 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
         { value: 'other', label: 'Other' }
     ]
 
-    const getCurrentThreatLevel = () => {
-        return threatLevels.find(t => t.value === requestData.threatLevel)
-    }
-
     const handleSubmit = async (e) => {
         e.preventDefault()
 
@@ -106,23 +102,19 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
             className="space-y-6"
         >
             {/* Request Type Info */}
-            <div className={`p-4 rounded-xl border ${isDark ? 'bg-primary-500/10 border-primary-500/20' : 'bg-primary-50 border-primary-200'
-                }`}>
+            <div className={`p-4 rounded-xl border ${isDark ? 'bg-primary-500/10 border-primary-500/20' : 'bg-primary-50 border-primary-200'}`}>
                 <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg ${isDark ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-600'
-                        }`}>
+                    <div className={`p-2 rounded-lg ${isDark ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-600'}`}>
                         <Shield className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className={`font-semibold ${isDark ? 'text-primary-300' : 'text-primary-800'
-                            }`}>
+                        <h3 className={`font-semibold ${isDark ? 'text-primary-300' : 'text-primary-800'}`}>
                             {activeTab === 'recommend' && 'Get Recommendations'}
                             {activeTab === 'analyze' && 'Analyze Current Setup'}
                             {activeTab === 'discover' && 'Discovery Mode'}
                             {activeTab === 'health' && 'Network Health Check'}
                         </h3>
-                        <p className={`text-sm ${isDark ? 'text-primary-400' : 'text-primary-600'
-                            }`}>
+                        <p className={`text-sm ${isDark ? 'text-primary-400' : 'text-primary-600'}`}>
                             {activeTab === 'recommend' && 'Get personalized relay recommendations based on your threat model'}
                             {activeTab === 'analyze' && 'Analyze your current relay setup for privacy and performance'}
                             {activeTab === 'discover' && 'Find new relays with quality content you might enjoy'}
@@ -136,14 +128,13 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Threat Level */}
                 <div className="space-y-3">
-                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
+                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Threat Level
                     </label>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {threatLevels.map((level) => (
-                            <motion.label
+                            <label
                                 key={level.value}
                                 className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${requestData.threatLevel === level.value
                                         ? level.bgColor
@@ -151,8 +142,6 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                                             ? 'border-dark-600 hover:border-dark-500 bg-dark-800/50'
                                             : 'border-gray-200 hover:border-gray-300 bg-white'
                                     }`}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
                             >
                                 <input
                                     type="radio"
@@ -167,23 +156,18 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                                     <div className={`font-medium text-sm ${level.color}`}>
                                         {level.label}
                                     </div>
-                                    <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'
-                                        }`}>
+                                    <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         {level.description}
                                     </div>
                                 </div>
 
                                 {requestData.threatLevel === level.value && (
-                                    <motion.div
-                                        layoutId="selectedThreat"
-                                        className={`w-4 h-4 rounded-full ${level.value === 'low' ? 'bg-green-500' :
-                                                level.value === 'medium' ? 'bg-yellow-500' :
-                                                    level.value === 'high' ? 'bg-orange-500' : 'bg-red-500'
-                                            }`}
-                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                    />
+                                    <div className={`w-4 h-4 rounded-full ${level.value === 'low' ? 'bg-green-500' :
+                                            level.value === 'medium' ? 'bg-yellow-500' :
+                                                level.value === 'high' ? 'bg-orange-500' : 'bg-red-500'
+                                        }`} />
                                 )}
-                            </motion.label>
+                            </label>
                         ))}
                     </div>
 
@@ -195,12 +179,10 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                             className={`flex items-start space-x-3 p-3 rounded-lg ${isDark ? 'bg-yellow-900/20 border border-yellow-800/50' : 'bg-yellow-50 border border-yellow-200'
                                 }`}
                         >
-                            <AlertTriangle className={`w-5 h-5 mt-0.5 ${isDark ? 'text-yellow-400' : 'text-yellow-600'
-                                }`} />
-                            <div className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-800'
-                                }`}>
+                            <AlertTriangle className={`w-5 h-5 mt-0.5 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`} />
+                            <div className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>
                                 <p className="font-medium">High Privacy Mode</p>
-                                <p>This will prioritize maximum privacy and security over performance. Results may include Tor-accessible relays and require additional verification.</p>
+                                <p>This will prioritize maximum privacy and security over performance.</p>
                             </div>
                         </motion.div>
                     )}
@@ -210,8 +192,7 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Max Results */}
                     <div>
-                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
+                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                             Maximum Results
                         </label>
                         <input
@@ -226,8 +207,7 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
 
                     {/* Use Case */}
                     <div>
-                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
+                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                             Use Case (Optional)
                         </label>
                         <select
@@ -252,8 +232,7 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                         animate={{ opacity: 1, height: 'auto' }}
                         className="space-y-3"
                     >
-                        <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
+                        <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                             Current Relays
                         </label>
 
@@ -278,11 +257,8 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                         {requestData.currentRelays.length > 0 && (
                             <div className="space-y-2">
                                 {requestData.currentRelays.map((relay, index) => (
-                                    <motion.div
+                                    <div
                                         key={index}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 20 }}
                                         className={`flex items-center justify-between p-3 rounded-lg border ${isDark ? 'bg-dark-700 border-dark-600' : 'bg-gray-50 border-gray-200'
                                             }`}
                                     >
@@ -290,12 +266,11 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                                         <button
                                             type="button"
                                             onClick={() => removeRelay(index)}
-                                            className={`text-red-500 hover:text-red-700 transition-colors ${isDark ? 'hover:text-red-400' : ''
-                                                }`}
+                                            className="text-red-500 hover:text-red-700 transition-colors"
                                         >
                                             Remove
                                         </button>
-                                    </motion.div>
+                                    </div>
                                 ))}
                             </div>
                         )}
@@ -304,8 +279,7 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
 
                 {/* Context */}
                 <div>
-                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
+                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                         Additional Context (Optional)
                     </label>
                     <textarea
@@ -318,15 +292,13 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                 </div>
 
                 {/* Submit Button */}
-                <motion.button
+                <button
                     type="submit"
                     disabled={!isConnected || currentRequest}
                     className={`w-full flex items-center justify-center space-x-2 px-6 py-4 rounded-xl font-medium transition-all ${!isConnected || currentRequest
                             ? 'bg-gray-400 cursor-not-allowed text-white'
                             : 'btn-primary'
                         }`}
-                    whileHover={!isConnected || currentRequest ? {} : { scale: 1.02 }}
-                    whileTap={!isConnected || currentRequest ? {} : { scale: 0.98 }}
                 >
                     {currentRequest ? (
                         <>
@@ -344,18 +316,12 @@ const RequestPanel = ({ activeTab, onSendRequest, isConnected, currentRequest, i
                             </span>
                         </>
                     )}
-                </motion.button>
+                </button>
 
-                {/* Connection Warning */}
                 {!isConnected && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className={`text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'
-                            }`}
-                    >
+                    <div className={`text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         Please connect to a DVM above to send requests
-                    </motion.div>
+                    </div>
                 )}
             </form>
         </motion.div>

@@ -94,7 +94,6 @@ export class NostrClient {
                     console.log(`📢 Notice from ${relayUrl}:`, subscriptionId)
                     break
                 case 'EOSE':
-                    // End of stored events
                     console.log(`📄 End of stored events from ${relayUrl}`)
                     break
                 case 'OK':
@@ -245,7 +244,6 @@ export class NostrClient {
         console.log('👋 Disconnected from all relays')
     }
 
-    // Utility methods
     getConnectionStatus() {
         return {
             total: this.relays.length,
