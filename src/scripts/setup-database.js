@@ -57,7 +57,7 @@ async function setupDatabase() {
 
             // Refresh materialized views
             console.log('🔄 Refreshing analytics...');
-            // await pool.query('SELECT refresh_relay_analytics()');
+            await pool.query('SELECT refresh_relay_analytics()');
             console.log('✅ Analytics refreshed!');
         }
 
