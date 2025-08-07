@@ -7,6 +7,7 @@
     "scripts": {
         "start": "node src/scripts/start-dvm.js",
         "setup": "node src/scripts/setup-database.js",
+        "comprehensive-setup": "node src/scripts/comprehensive-setup.js",
         "dev": "nodemon src/scripts/start-dvm.js",
         "preprocess": "node src/scripts/setup-database.js --preprocess-only",
         "test": "node src/scripts/test-client.js --help",
@@ -22,7 +23,9 @@
         "web:simple": "python3 -m http.server 3000 --directory src/web || python -m http.server 3000 --directory src/web",
         "install:all": "npm install && npm run client:install",
         "dev:all": "concurrently \"npm run dev\" \"npm run client:dev\"",
-        "demo": "echo 'Choose your client:' && echo '1. Modern React: npm run client:dev' && echo '2. Simple HTML: npm run web:simple'"
+        "demo": "echo 'Choose your client:' && echo '1. Modern React: npm run client:dev' && echo '2. Simple HTML: npm run web:simple'",
+        "analyze": "node src/scripts/analyze-data.js",
+        "analyze:rebuild": "node src/scripts/analyze-data.js --rebuild"
     },
     "bin": {
         "relay-shadow-client": "./src/scripts/test-client.js"
@@ -37,12 +40,16 @@
         "censorship-resistance",
         "client",
         "react",
-        "vite"
+        "vite",
+        "alby",
+        "wallet"
     ],
     "author": "BigBrotr Team",
     "license": "MIT",
     "dependencies": {
+        "cors": "^2.8.5",
         "dotenv": "^16.3.0",
+        "express": "^4.21.2",
         "nostr-relaypool": "^0.6.30",
         "nostr-tools": "^1.17.0",
         "pg": "^8.11.0",

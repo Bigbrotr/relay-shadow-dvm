@@ -1,52 +1,19 @@
 // src/scripts/start-dvm.js
 import { RelayShadowDVM } from '../dvm/RelayShadowDVM.js';
-import { generatePrivateKey, getPublicKey } from 'nostr-tools';
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
+import { startApiServer } from '../api/server.js';
+import config from '../dvm/config.js';
 
 async function startDVM() {
     console.log('🔮 Starting Relay Shadow DVM...');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
-        // Create configuration directly here to avoid import issues
-        const config = {
-            // Database Configuration
-            database: {
-                user: process.env.DB_USER || 'postgres',
-                host: process.env.DB_HOST || 'localhost',
-                database: process.env.DB_NAME || 'bigbrotr',
-                password: process.env.DB_PASSWORD,
-                port: parseInt(process.env.DB_PORT) || 5432,
-                max: 10,
-                idleTimeoutMillis: 30000,
-                connectionTimeoutMillis: 2000,
-            },
-
-            // DVM Configuration
-            privateKey: process.env.DVM_PRIVATE_KEY || generatePrivateKey(),
-            dvmRelays: (process.env.DVM_RELAYS || 'wss://relay.damus.io,wss://relay.snort.social,wss://nos.lol').split(','),
-        };
-
-        // Validate configuration
-        if (!config.database.password) {
-            console.warn('⚠️  Warning: No database password provided. Set DB_PASSWORD in .env file');
-        }
-
-        if (!process.env.DVM_PRIVATE_KEY) {
-            console.warn('⚠️  Warning: Using generated private key. Set DVM_PRIVATE_KEY in .env for persistence');
-            console.log(`🔑 Generated private key: ${config.privateKey}`);
-        }
-
         // Display configuration
-        const publicKey = getPublicKey(config.privateKey);
-        console.log(`🔑 DVM Public Key: ${publicKey}`);
+        console.log(`🔑 DVM Public Key: ${config.publicKey}`);
         console.log(`🌐 Monitoring ${config.dvmRelays.length} relays:`);
         config.dvmRelays.forEach(relay => console.log(`   • ${relay.trim()}`));
         console.log(`🗃️  Database: ${config.database.host}:${config.database.port}/${config.database.database}`);
-        console.log(`🎯 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🎯 Environment: ${config.server.nodeEnv}`);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         // Test database connection first
@@ -75,32 +42,26 @@ async function startDVM() {
             await testPool.end();
         }
 
-        // Initialize DVM
-        const dvm = new RelayShadowDVM(config);
+        // Start API server for client communication
+        console.log('🌐 Starting API server...');
+        startApiServer();
 
-        // Start listening for requests
+        // Initialize and start DVM
+        const dvm = new RelayShadowDVM(config);
         await dvm.start();
 
         console.log('🎉 Relay Shadow DVM is now running!');
         console.log('📡 Listening for DVM requests...');
         console.log('💡 Send requests with kind 5600 mentioning this DVM');
+
         console.log('\n✨ Ready to provide privacy-focused relay recommendations!');
+        console.log(`📱 Client can connect at: http://localhost:${config.server.clientPort}`);
+        console.log(`🔗 DVM info available at: http://localhost:${config.server.port}/api/dvm/info`);
 
-        // Display example request
-        console.log('\n📝 Example request format:');
-        console.log(JSON.stringify({
-            kind: 5600,
-            content: "recommend private relays",
-            tags: [
-                ["p", publicKey],
-                ["param", "threat_level", "high"],
-                ["param", "use_case", "journalism"],
-                ["param", "max_results", "10"]
-            ]
-        }, null, 2));
-
-        console.log('\n🧪 Test with CLI:');
-        console.log(`node src/scripts/test-client.js --dvm-pubkey ${publicKey} --request-type recommend --threat-level medium`);
+        // Display example usage
+        console.log('\n🧪 Test commands:');
+        console.log(`npm run test:recommend`);
+        console.log(`npm run client:dev`);
 
     } catch (error) {
         console.error('❌ Failed to start DVM:', error.message);

@@ -1,9 +1,22 @@
 import { generatePrivateKey, getPublicKey, finishEvent, validateEvent } from 'nostr-tools'
 
 export class NostrClient {
-    constructor(privateKey, dvmPublicKey) {
-        this.privateKey = privateKey
-        this.publicKey = getPublicKey(privateKey)
+    constructor(privateKey, dvmPublicKey, signFunction = null, albyPublicKey = null) {
+        // Handle different connection methods
+        if (signFunction && albyPublicKey) {
+            // Alby connection
+            this.useAlby = true
+            this.signFunction = signFunction
+            this.publicKey = albyPublicKey
+            this.privateKey = null
+        } else {
+            // Manual connection
+            this.useAlby = false
+            this.privateKey = privateKey
+            this.publicKey = getPublicKey(privateKey)
+            this.signFunction = null
+        }
+
         this.dvmPublicKey = dvmPublicKey
         this.connections = new Map()
         this.subscriptions = new Map()
@@ -21,6 +34,7 @@ export class NostrClient {
         console.log('🔮 NostrClient initialized')
         console.log('📡 Client pubkey:', this.publicKey)
         console.log('🎯 DVM pubkey:', this.dvmPublicKey)
+        console.log('🔐 Connection method:', this.useAlby ? 'Alby Wallet' : 'Manual Key')
     }
 
     async connect() {
@@ -60,7 +74,7 @@ export class NostrClient {
 
                 ws.onerror = (error) => {
                     clearTimeout(timeout)
-                    console.log(`  ✗ Failed to connect to ${relayUrl}:`, error.message)
+                    console.log(`  ✗ Failed to connect to ${relayUrl}:`, error.message || 'Connection failed')
                     reject(error)
                 }
 
@@ -71,6 +85,11 @@ export class NostrClient {
                 ws.onclose = (event) => {
                     this.connections.delete(relayUrl)
                     console.log(`  ⚠ Disconnected from ${relayUrl}`, event.code)
+
+                    // Notify error handler if connection is unexpectedly closed
+                    if (this.onError && event.code !== 1000) {
+                        this.onError(new Error(`Lost connection to ${relayUrl}`))
+                    }
                 }
 
             } catch (error) {
@@ -92,12 +111,26 @@ export class NostrClient {
                     break
                 case 'NOTICE':
                     console.log(`📢 Notice from ${relayUrl}:`, subscriptionId)
+                    // Some notices might be important for debugging
+                    if (subscriptionId && subscriptionId.includes('error')) {
+                        this.onError?.(new Error(`Relay notice: ${subscriptionId}`))
+                    }
                     break
                 case 'EOSE':
                     console.log(`📄 End of stored events from ${relayUrl}`)
                     break
                 case 'OK':
-                    console.log(`✅ Event accepted by ${relayUrl}:`, subscriptionId)
+                    const [, eventId, accepted, reason] = JSON.parse(message)
+                    if (accepted) {
+                        console.log(`✅ Event accepted by ${relayUrl}:`, eventId?.substring(0, 8))
+                    } else {
+                        console.log(`❌ Event rejected by ${relayUrl}:`, reason)
+                        this.onError?.(new Error(`Event rejected by ${relayUrl}: ${reason}`))
+                    }
+                    break
+                case 'AUTH':
+                    console.log(`🔐 Auth challenge from ${relayUrl}`)
+                    // Handle AUTH if needed
                     break
             }
         } catch (error) {
@@ -125,7 +158,8 @@ export class NostrClient {
                     _meta: {
                         eventId: event.id,
                         timestamp: event.created_at,
-                        dvmPubkey: event.pubkey
+                        dvmPubkey: event.pubkey,
+                        receivedAt: Date.now()
                     }
                 })
             } catch (error) {
@@ -183,12 +217,28 @@ export class NostrClient {
             requestEvent.tags.push(['param', 'current_relays', currentRelays.join(',')])
         }
 
-        // Sign the event
-        const signedEvent = finishEvent(requestEvent, this.privateKey)
+        // Add client info for better DVM responses
+        requestEvent.tags.push(['client', 'relay-shadow-client', '1.0.0'])
 
-        // Validate before sending
-        if (!validateEvent(signedEvent)) {
-            throw new Error('Invalid event signature')
+        // Sign the event
+        let signedEvent
+        try {
+            if (this.useAlby && this.signFunction) {
+                // Use Alby for signing
+                console.log('🔐 Signing with Alby...')
+                signedEvent = await this.signFunction(requestEvent)
+            } else {
+                // Use manual signing
+                signedEvent = finishEvent(requestEvent, this.privateKey)
+            }
+
+            // Validate before sending
+            if (!validateEvent(signedEvent)) {
+                throw new Error('Invalid event signature')
+            }
+        } catch (error) {
+            console.error('Event signing failed:', error)
+            throw new Error(`Failed to sign event: ${error.message}`)
         }
 
         // Send to all connected relays
@@ -215,10 +265,15 @@ export class NostrClient {
                 return
             }
 
-            const eventMessage = ['EVENT', event]
-            ws.send(JSON.stringify(eventMessage))
-            console.log(`  → Sent to ${relayUrl}`)
-            resolve()
+            try {
+                const eventMessage = ['EVENT', event]
+                ws.send(JSON.stringify(eventMessage))
+                console.log(`  → Sent to ${relayUrl}`)
+                resolve()
+            } catch (error) {
+                console.error(`Failed to send to ${relayUrl}:`, error)
+                reject(error)
+            }
         })
     }
 
@@ -226,10 +281,14 @@ export class NostrClient {
         console.log('🔌 Disconnecting from relays...')
 
         // Close subscriptions
-        for (const [subId, ws] of this.subscriptions) {
+        for (const [subId] of this.subscriptions) {
             Array.from(this.connections.values()).forEach(ws => {
                 if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify(['CLOSE', subId]))
+                    try {
+                        ws.send(JSON.stringify(['CLOSE', subId]))
+                    } catch (error) {
+                        console.warn('Error closing subscription:', error)
+                    }
                 }
             })
         }
@@ -237,7 +296,11 @@ export class NostrClient {
 
         // Close connections
         Array.from(this.connections.values()).forEach(ws => {
-            ws.close()
+            try {
+                ws.close(1000, 'Client disconnecting')
+            } catch (error) {
+                console.warn('Error closing connection:', error)
+            }
         })
         this.connections.clear()
 
@@ -245,10 +308,31 @@ export class NostrClient {
     }
 
     getConnectionStatus() {
+        const connectedRelays = Array.from(this.connections.keys())
         return {
             total: this.relays.length,
             connected: this.connections.size,
-            relays: Array.from(this.connections.keys())
+            relays: connectedRelays,
+            method: this.useAlby ? 'Alby Wallet' : 'Manual Key',
+            publicKey: this.publicKey
         }
+    }
+
+    // Helper method to check if client is ready
+    isReady() {
+        return this.connections.size > 0 && (this.privateKey || (this.useAlby && this.signFunction))
+    }
+
+    // Method to get relay performance stats
+    getRelayStats() {
+        const stats = {}
+        for (const [url, ws] of this.connections) {
+            stats[url] = {
+                connected: ws.readyState === WebSocket.OPEN,
+                readyState: ws.readyState,
+                url: ws.url
+            }
+        }
+        return stats
     }
 }

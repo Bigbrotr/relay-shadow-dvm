@@ -1,8 +1,12 @@
 // src/dvm/config.js
 import dotenv from 'dotenv';
-import { generatePrivateKey } from 'nostr-tools';
+import { generatePrivateKey, getPublicKey } from 'nostr-tools';
 
 dotenv.config();
+
+// Generate or get private key
+const privateKey = process.env.DVM_PRIVATE_KEY || generatePrivateKey();
+const publicKey = process.env.DVM_PUBLIC_KEY || getPublicKey(privateKey);
 
 export const config = {
     // Database Configuration
@@ -17,8 +21,9 @@ export const config = {
         connectionTimeoutMillis: 2000,
     },
 
-    // DVM Configuration - Fixed structure
-    privateKey: process.env.DVM_PRIVATE_KEY || generatePrivateKey(),
+    // DVM Configuration
+    privateKey,
+    publicKey,
     dvmRelays: (process.env.DVM_RELAYS || 'wss://relay.damus.io,wss://relay.snort.social,wss://nos.lol').split(','),
 
     // DVM Protocol
@@ -31,6 +36,7 @@ export const config = {
     // Server Configuration
     server: {
         port: parseInt(process.env.PORT) || 3001,
+        clientPort: parseInt(process.env.CLIENT_PORT) || 3000,
         logLevel: process.env.LOG_LEVEL || 'info',
         nodeEnv: process.env.NODE_ENV || 'development',
     },
@@ -46,7 +52,7 @@ export const config = {
     }
 };
 
-// Validation
+// Validation and warnings
 if (!config.database.password) {
     console.warn('⚠️  Warning: No database password provided. Set DB_PASSWORD in .env file');
 }
@@ -54,6 +60,10 @@ if (!config.database.password) {
 if (!process.env.DVM_PRIVATE_KEY) {
     console.warn('⚠️  Warning: Using generated private key. Set DVM_PRIVATE_KEY in .env for persistence');
     console.log(`🔑 Generated private key: ${config.privateKey}`);
+    console.log(`📡 Generated public key: ${config.publicKey}`);
+    console.log('💡 Add this to your .env file:');
+    console.log(`DVM_PRIVATE_KEY=${config.privateKey}`);
+    console.log(`DVM_PUBLIC_KEY=${config.publicKey}`);
 }
 
 export default config;
