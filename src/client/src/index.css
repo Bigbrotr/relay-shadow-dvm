@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 * {
   box-sizing: border-box;
@@ -40,30 +40,35 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-slate-800;
+  @apply bg-gray-100 dark:bg-gray-800;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-slate-600 rounded-full;
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400 dark:bg-slate-500;
+  @apply bg-gray-400 dark:bg-gray-500;
 }
 
 /* Button styles */
 .btn-primary {
   @apply bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600;
   @apply text-white font-medium px-6 py-3 rounded-xl transition-all duration-200;
-  @apply shadow-lg hover:shadow-xl hover:shadow-blue-500/25;
+  @apply shadow-lg hover:shadow-xl;
   @apply transform hover:scale-105 active:scale-95;
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -2px rgba(59, 130, 246, 0.05);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.25), 0 10px 10px -5px rgba(59, 130, 246, 0.04);
 }
 
 /* Form inputs */
 .input-primary {
   @apply w-full px-4 py-3 rounded-xl border transition-all duration-200;
-  @apply bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600;
+  @apply bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600;
   @apply text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400;
-  @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20;
+  @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20;
   @apply focus:outline-none;
 }
