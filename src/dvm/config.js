@@ -17,10 +17,12 @@ export const config = {
         connectionTimeoutMillis: 2000,
     },
 
-    // DVM Configuration
+    // DVM Configuration - Fixed structure
+    privateKey: process.env.DVM_PRIVATE_KEY || generatePrivateKey(),
+    dvmRelays: (process.env.DVM_RELAYS || 'wss://relay.damus.io,wss://relay.snort.social,wss://nos.lol').split(','),
+
+    // DVM Protocol
     dvm: {
-        privateKey: process.env.DVM_PRIVATE_KEY || generatePrivateKey(),
-        relays: (process.env.DVM_RELAYS || 'wss://relay.damus.io,wss://relay.snort.social').split(','),
         requestKind: 5600,
         responseKind: 6600,
         jobRequestKind: 68001,
@@ -51,7 +53,7 @@ if (!config.database.password) {
 
 if (!process.env.DVM_PRIVATE_KEY) {
     console.warn('⚠️  Warning: Using generated private key. Set DVM_PRIVATE_KEY in .env for persistence');
-    console.log(`🔑 Generated private key: ${config.dvm.privateKey}`);
+    console.log(`🔑 Generated private key: ${config.privateKey}`);
 }
 
 export default config;
