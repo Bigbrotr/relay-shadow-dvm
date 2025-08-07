@@ -7,10 +7,25 @@
     "scripts": {
         "start": "node src/scripts/start-dvm.js",
         "setup": "node src/scripts/setup-database.js",
-        "test": "node src/scripts/test-client.js",
         "dev": "nodemon src/scripts/start-dvm.js",
-        "web": "python -m http.server 3000 --directory src/web",
-        "preprocess": "node src/scripts/setup-database.js --preprocess-only"
+        "preprocess": "node src/scripts/setup-database.js --preprocess-only",
+        "test": "node src/scripts/test-client.js --help",
+        "test:recommend": "node src/scripts/test-client.js --dvm-pubkey $DVM_PUBKEY --threat-level high",
+        "test:analyze": "node src/scripts/test-client.js --dvm-pubkey $DVM_PUBKEY --request-type analyze --current-relays 'wss://relay.damus.io,wss://relay.snort.social'",
+        "test:health": "node src/scripts/test-client.js --dvm-pubkey $DVM_PUBKEY --request-type health",
+        "client:install": "cd src/client && npm install",
+        "client:dev": "cd src/client && npm run dev",
+        "client:build": "cd src/client && npm run build",
+        "client:preview": "cd src/client && npm run preview",
+        "web": "echo 'Starting modern React client...' && npm run client:dev",
+        "web:build": "npm run client:build",
+        "web:simple": "python3 -m http.server 3000 --directory src/web || python -m http.server 3000 --directory src/web",
+        "install:all": "npm install && npm run client:install",
+        "dev:all": "concurrently \"npm run dev\" \"npm run client:dev\"",
+        "demo": "echo 'Choose your client:' && echo '1. Modern React: npm run client:dev' && echo '2. Simple HTML: npm run web:simple'"
+    },
+    "bin": {
+        "relay-shadow-client": "./src/scripts/test-client.js"
     },
     "keywords": [
         "nostr",
@@ -19,7 +34,10 @@
         "relay",
         "bitcoin",
         "decentralized",
-        "censorship-resistance"
+        "censorship-resistance",
+        "client",
+        "react",
+        "vite"
     ],
     "author": "BigBrotr Team",
     "license": "MIT",
@@ -30,7 +48,8 @@
         "dotenv": "^16.3.0"
     },
     "devDependencies": {
-        "nodemon": "^3.0.0"
+        "nodemon": "^3.0.0",
+        "concurrently": "^8.2.0"
     },
     "engines": {
         "node": ">=18.0.0"
