@@ -153,7 +153,7 @@ class ComprehensiveSetup {
                 'analyze_user_current_relays',
                 'get_discovery_relays',
                 'get_relay_health_summary',
-                'refresh_relay_analytics'
+                // 'refresh_relay_analytics'
             ];
 
             for (const func of functions) {
