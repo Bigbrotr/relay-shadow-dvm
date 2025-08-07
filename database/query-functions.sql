@@ -1,4 +1,4 @@
--- Fast query functions for the DVM
+-- Fast query functions for the DVM (FIXED VERSION)
 
 -- 1. Get personalized relay recommendations for a user
 CREATE OR REPLACE FUNCTION get_user_relay_recommendations(
@@ -292,7 +292,7 @@ BEGIN
     ORDER BY discovery_score DESC
     LIMIT max_results;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 4. Get relay health monitoring data
 CREATE OR REPLACE FUNCTION get_relay_health_summary()
@@ -303,7 +303,7 @@ RETURNS TABLE(
     avg_latency_ms INT,
     recent_events_24h BIGINT,
     issues TEXT[]
-) AS $
+) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
@@ -344,7 +344,7 @@ BEGIN
         END DESC,
         ra.recent_events_30d DESC;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 5. Generate relay rotation strategy
 CREATE OR REPLACE FUNCTION generate_relay_rotation_strategy(
@@ -355,7 +355,7 @@ CREATE OR REPLACE FUNCTION generate_relay_rotation_strategy(
     time_slot TEXT,
     recommended_relays TEXT[],
     strategy_reason TEXT
-) AS $
+) AS $$
 BEGIN
     RETURN QUERY
     WITH rotation_pools AS (
@@ -399,7 +399,7 @@ BEGIN
             (3, '18:00-00:00 (Evening)', 'High reliability for consistent access')
     ) slot(slot_id, time_description, strategy_reason);
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 6. Performance optimization: Create composite indexes
 CREATE INDEX IF NOT EXISTS idx_events_pubkey_kind_created ON events(pubkey, kind, created_at DESC);
@@ -407,7 +407,7 @@ CREATE INDEX IF NOT EXISTS idx_events_relays_seen_at_desc ON events_relays(seen_
 CREATE INDEX IF NOT EXISTS idx_relay_publisher_weights_composite ON relay_publisher_weights(relay_url, publisher_influence DESC);
 
 -- 7. Utility function to refresh all analytics (run periodically)
-CREATE OR REPLACE FUNCTION refresh_relay_analytics() RETURNS VOID AS $
+CREATE OR REPLACE FUNCTION refresh_relay_analytics() RETURNS VOID AS $$
 BEGIN
     -- Refresh materialized view
     REFRESH MATERIALIZED VIEW relay_recommendations;
@@ -420,4 +420,4 @@ BEGIN
     
     RAISE NOTICE 'Relay analytics refreshed successfully';
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
