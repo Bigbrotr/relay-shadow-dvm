@@ -1,0 +1,46 @@
+{
+    "name": "relay-shadow-dvm",
+    "version": "1.0.0",
+    "description": "Privacy-focused Nostr relay recommendation DVM using BigBrotr dataset intelligence",
+    "main": "src/scripts/start-dvm.js",
+    "type": "module",
+    "scripts": {
+        "start": "node src/scripts/start-dvm.js",
+        "setup": "node src/scripts/setup-database.js",
+        "test": "node src/scripts/test-client.js",
+        "dev": "nodemon src/scripts/start-dvm.js",
+        "web": "python -m http.server 3000 --directory src/web",
+        "preprocess": "node src/scripts/setup-database.js --preprocess-only"
+    },
+    "keywords": [
+        "nostr",
+        "dvm",
+        "privacy",
+        "relay",
+        "bitcoin",
+        "decentralized",
+        "censorship-resistance"
+    ],
+    "author": "BigBrotr Team",
+    "license": "MIT",
+    "dependencies": {
+        "pg": "^8.11.0",
+        "nostr-tools": "^1.17.0",
+        "ws": "^8.14.0",
+        "dotenv": "^16.3.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Bigbrotr/relay-shadow-dvm.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Bigbrotr/relay-shadow-dvm/issues"
+    },
+    "homepage": "https://github.com/Bigbrotr/relay-shadow-dvm#readme"
+}
