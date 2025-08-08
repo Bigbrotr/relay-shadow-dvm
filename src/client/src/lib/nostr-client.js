@@ -301,9 +301,9 @@ export class NostrClient {
             'REQ',
             subscriptionId,
             {
-                kinds: [5601], // DVM response kind
+                kinds: [5601], // DVM response kind - FIXED
                 '#p': [this.publicKey], // Responses to our public key
-                since: Math.floor(Date.now() / 1000) - 60 // Last minute
+                since: Math.floor(Date.now() / 1000) - 300 // FIXED: Last 5 minutes (was 60 seconds)
             }
         ]
 
@@ -331,16 +331,17 @@ export class NostrClient {
 
         const { requestType, threatLevel, maxResults, useCase, context, currentRelays } = requestData
 
-        // Build request event - ENSURE ALL REQUIRED PROPERTIES ARE PRESENT
+        // Build properly structured request event
         const requestEvent = {
             kind: 5600, // DVM request kind
             created_at: Math.floor(Date.now() / 1000),
-            pubkey: this.publicKey, // ← CRITICAL: This must be present
+            pubkey: this.publicKey, // CRITICAL: Must be present
             tags: [
                 ['p', this.dvmPublicKey], // DVM public key
                 ['param', 'request_type', requestType],
                 ['param', 'threat_level', threatLevel || 'medium'],
-                ['param', 'max_results', String(maxResults || 10)]
+                ['param', 'max_results', String(maxResults || 10)],
+                ['relays', ...this.relayUrls] // ADDED: Include relay hint
             ],
             content: context || `Request ${requestType} with threat level ${threatLevel}`,
         }
@@ -354,133 +355,42 @@ export class NostrClient {
             requestEvent.tags.push(['param', 'current_relays', currentRelays.join(',')])
         }
 
-        // Add client info for better DVM responses
-        requestEvent.tags.push(['client', 'relay-shadow-client', '1.0.0'])
+        // CRITICAL: Sign the event before sending
+        const signedEvent = await this.signEvent(requestEvent)
 
-        // Enhanced validation before signing
-        console.log('🔍 Event validation before signing:')
-        console.log('Event object:', JSON.stringify(requestEvent, null, 2))
-
-        const requiredProps = ['kind', 'created_at', 'pubkey', 'tags', 'content']
-        const missingProps = requiredProps.filter(prop => {
-            const value = requestEvent[prop]
-            return value === undefined || value === null || value === ''
+        console.log('📤 Sending DVM request:', {
+            type: requestType,
+            id: signedEvent.id.substring(0, 8),
+            dvmPubkey: this.dvmPublicKey.substring(0, 8)
         })
 
-        if (missingProps.length > 0) {
-            console.error('❌ Missing required properties:', missingProps)
-            console.error('Current event object:', requestEvent)
-            throw new Error(`Event missing required properties: ${missingProps.join(', ')}`)
-        }
+        // Send to all connected relays with proper error handling
+        const results = await Promise.allSettled(
+            Array.from(this.connections.entries()).map(([url, ws]) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    return new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => reject(new Error('Timeout')), 5000)
 
-        // Validate pubkey format more thoroughly
-        if (!this.publicKey) {
-            console.error('❌ this.publicKey is not set')
-            throw new Error('Client public key is not initialized')
-        }
-
-        if (typeof requestEvent.pubkey !== 'string') {
-            console.error('❌ pubkey is not a string:', typeof requestEvent.pubkey, requestEvent.pubkey)
-            throw new Error('Event pubkey must be a string')
-        }
-
-        if (!/^[a-f0-9]{64}$/i.test(requestEvent.pubkey)) {
-            console.error('❌ Invalid pubkey format:', requestEvent.pubkey)
-            console.error('Pubkey length:', requestEvent.pubkey?.length)
-            throw new Error('Event pubkey should be 64 character hex string')
-        }
-
-        // Validate other required properties
-        if (typeof requestEvent.kind !== 'number' || requestEvent.kind <= 0) {
-            throw new Error('Event kind must be a positive number')
-        }
-
-        if (typeof requestEvent.created_at !== 'number' || requestEvent.created_at <= 0) {
-            throw new Error('Event created_at must be a positive timestamp')
-        }
-
-        if (!Array.isArray(requestEvent.tags)) {
-            throw new Error('Event tags must be an array')
-        }
-
-        if (typeof requestEvent.content !== 'string') {
-            throw new Error('Event content must be a string')
-        }
-
-        console.log('✅ Event validation passed')
-
-        // Sign the event
-        let signedEvent
-        try {
-            if (this.useAlby && this.signFunction) {
-                console.log('🔐 Signing with Alby...')
-                signedEvent = await this.signFunction(requestEvent)
-            } else {
-                console.log('🔐 Signing with private key...')
-                signedEvent = finishEvent(requestEvent, this.privateKey)
-            }
-
-            // Validate the signed event
-            if (!signedEvent) {
-                throw new Error('Signing returned null/undefined event')
-            }
-
-            if (!validateEvent(signedEvent)) {
-                console.error('❌ Signed event failed validation:', signedEvent)
-                throw new Error('Invalid event signature')
-            }
-
-            console.log('✅ Event signed successfully')
-            console.log('Event ID:', signedEvent.id)
-
-        } catch (error) {
-            console.error('❌ Event signing failed:', error)
-            console.error('Original event:', requestEvent)
-            console.error('Client state:')
-            console.error('  - useAlby:', this.useAlby)
-            console.error('  - signFunction:', !!this.signFunction)
-            console.error('  - privateKey:', !!this.privateKey)
-            console.error('  - publicKey:', this.publicKey)
-
-            // Debug client state
-            console.log('🔧 Client Debug Info:')
-            console.log('  - Connected relays:', this.connections.size)
-            console.log('  - Public key:', this.publicKey)
-            console.log('  - Public key type:', typeof this.publicKey)
-            console.log('  - Public key length:', this.publicKey?.length)
-            console.log('  - Private key exists:', !!this.privateKey)
-            console.log('  - Use Alby:', this.useAlby)
-            console.log('  - Sign function exists:', !!this.signFunction)
-
-            throw new Error(`Failed to sign event: ${error.message}`)
-        }
-
-        // Send to all connected relays with improved error handling
-        const publishPromises = Array.from(this.connections.entries()).map(([url, ws]) => {
-            return this.publishEventToRelay(ws, signedEvent, url)
-        })
-
-        const results = await Promise.allSettled(publishPromises)
-        const successful = results.filter(r => r.status === 'fulfilled').length
-        const failed = results.filter(r => r.status === 'rejected')
-
-        console.log(`📤 Request sent to ${successful}/${this.connections.size} relays`)
-        console.log(`🔍 Request ID: ${signedEvent.id}`)
-
-        // Log any failures
-        if (failed.length > 0) {
-            console.warn(`⚠️ Failed to send to ${failed.length} relays:`)
-            failed.forEach((result, index) => {
-                const relayUrls = Array.from(this.connections.keys())
-                const relayUrl = relayUrls[results.findIndex(r => r === result)]
-                console.warn(`  - ${relayUrl}: ${result.reason?.message}`)
+                        try {
+                            ws.send(JSON.stringify(['EVENT', signedEvent]))
+                            clearTimeout(timeout)
+                            resolve(url)
+                        } catch (error) {
+                            clearTimeout(timeout)
+                            reject(error)
+                        }
+                    })
+                }
+                return Promise.reject(new Error(`Relay ${url} not connected`))
             })
-        }
+        )
 
+        const successful = results.filter(r => r.status === 'fulfilled').length
         if (successful === 0) {
             throw new Error('Failed to send request to any relay')
         }
 
+        console.log(`✅ Request sent to ${successful}/${results.length} relays`)
         return signedEvent
     }
 

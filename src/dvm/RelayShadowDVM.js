@@ -160,43 +160,53 @@ class RelayShadowDVM {
 
     async handleDVMRequest(event) {
         try {
-            console.log(`📨 Processing DVM request from ${event.pubkey.substring(0, 8)}...`);
+            console.log(`📨 Processing DVM request from ${event.pubkey.substring(0, 8)}...`)
 
             // Validate the request
-            if (!validateEvent(event)) {
-                console.log('❌ Invalid event received');
-                return;
+            if (!this.validateEvent(event)) {
+                console.log('❌ Invalid event received')
+                return
             }
 
             // Parse request parameters
-            const request = this.parseRequest(event);
-            console.log(`🔍 Request type: ${request.type}, Threat level: ${request.threatLevel}`);
+            const request = this.parseRequest(event)
+            console.log(`🔍 Request type: ${request.type}, Threat level: ${request.threatLevel}`)
 
             // Process the request
-            let response;
+            let response
             switch (request.type) {
                 case 'recommend':
-                    response = await this.generateRecommendations(request);
-                    break;
+                    response = await this.generateRecommendations(request)
+                    break
                 case 'analyze':
-                    response = await this.analyzeCurrentSetup(request);
-                    break;
+                    response = await this.analyzeCurrentSetup(request)
+                    break
                 case 'discover':
-                    response = await this.generateDiscoveryRecommendations(request);
-                    break;
+                    response = await this.generateDiscoveryRecommendations(request)
+                    break
                 case 'health':
-                    response = await this.getRelayHealthSummary(request);
-                    break;
+                    response = await this.getRelayHealthSummary(request)
+                    break
                 default:
-                    response = await this.generateRecommendations(request);
+                    response = await this.generateRecommendations(request)
             }
 
-            // Send response
-            await this.sendResponse(event, response);
+            // FIXED: Send response immediately after processing
+            await this.sendResponse(event, response)
 
         } catch (error) {
-            console.error('❌ Error handling DVM request:', error);
-            await this.sendErrorResponse(event, error.message);
+            console.error('Error handling DVM request:', error)
+
+            // Send error response
+            try {
+                await this.sendResponse(event, {
+                    type: 'error',
+                    error: error.message,
+                    timestamp: Math.floor(Date.now() / 1000)
+                })
+            } catch (sendError) {
+                console.error('Failed to send error response:', sendError)
+            }
         }
     }
 
@@ -523,31 +533,56 @@ class RelayShadowDVM {
         }
     }
 
-    async sendResponse(originalEvent, responseData) {
-        const responseEvent = {
-            kind: this.dvmResponseKind,
-            created_at: Math.floor(Date.now() / 1000),
-            tags: [
-                ['e', originalEvent.id], // Reference original request
-                ['p', originalEvent.pubkey], // Send to requester
-                ['request', originalEvent.id],
-                ['status', 'success']
-            ],
-            content: JSON.stringify(responseData),
-            pubkey: this.publicKey
-        };
+    async sendResponse(originalRequest, responseData) {
+        try {
+            const responseEvent = {
+                kind: 5601, // FIXED: Correct DVM response kind
+                created_at: Math.floor(Date.now() / 1000),
+                pubkey: this.publicKey,
+                tags: [
+                    ['p', originalRequest.pubkey], // Respond to requester
+                    ['e', originalRequest.id], // Reference to original request
+                    ['type', responseData.type || 'relay_recommendations'], // Response type
+                    ['status', 'success'] // Completion status
+                ],
+                content: JSON.stringify(responseData),
+            }
 
-        const signedEvent = finishEvent(responseEvent, this.privateKey);
+            // CRITICAL: Sign the response event
+            const signedResponse = await this.signEvent(responseEvent)
 
-        // Publish to all connected relays
-        const publishPromises = Array.from(this.connections.entries()).map(([url, ws]) => {
-            return this.publishEventToRelay(ws, signedEvent, url);
-        });
+            console.log(`📤 Sending DVM response: ${signedResponse.id.substring(0, 8)}`)
 
-        const results = await Promise.allSettled(publishPromises);
-        const successful = results.filter(r => r.status === 'fulfilled').length;
+            // Send to all connected relays
+            const results = await Promise.allSettled(
+                Array.from(this.connections.values()).map(ws => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        return new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error('Timeout')), 5000)
 
-        console.log(`✅ Response sent to ${successful}/${this.connections.size} relays for request ${originalEvent.id.substring(0, 8)}...`);
+                            try {
+                                ws.send(JSON.stringify(['EVENT', signedResponse]))
+                                clearTimeout(timeout)
+                                resolve(true)
+                            } catch (error) {
+                                clearTimeout(timeout)
+                                reject(error)
+                            }
+                        })
+                    }
+                    return Promise.reject(new Error('Relay not connected'))
+                })
+            )
+
+            const successful = results.filter(r => r.status === 'fulfilled').length
+            console.log(`✅ Response sent to ${successful}/${results.length} relays`)
+
+            return signedResponse
+
+        } catch (error) {
+            console.error('Failed to send DVM response:', error)
+            throw error
+        }
     }
 
     async publishEventToRelay(ws, event, relayUrl) {

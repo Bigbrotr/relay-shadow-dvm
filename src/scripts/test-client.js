@@ -333,7 +333,7 @@ class DVMTestClient {
 
     async subscribeToResponses() {
         const subscription = {
-            kinds: [6600], // DVM response kind
+            kinds: [5601], // FIXED: Correct DVM response kind (was 6600)
             '#p': [this.publicKey], // Responses addressed to us
             since: Math.floor(Date.now() / 1000) - 300 // Last 5 minutes
         }
