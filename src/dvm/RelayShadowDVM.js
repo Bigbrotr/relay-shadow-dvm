@@ -13,7 +13,7 @@ class RelayShadowDVM {
 
         // DVM Configuration
         this.dvmKind = 5600; // DVM request kind
-        this.dvmResponseKind = 6600; // DVM response kind
+        this.dvmResponseKind = 5601; // DVM response kind
         this.dvmJobRequestKind = 68001; // Custom job request kind for relay recommendations
 
         // WebSocket connections

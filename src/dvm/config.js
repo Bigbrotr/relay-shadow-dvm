@@ -29,7 +29,7 @@ export const config = {
     // DVM Protocol
     dvm: {
         requestKind: 5600,
-        responseKind: 6600,
+        responseKind: 5601,
         jobRequestKind: 68001,
     },
 

@@ -198,7 +198,7 @@ class DVMTestClient {
     }
 
     isDVMResponse(event) {
-        if (!event || event.kind !== 6600) return false
+        if (!event || event.kind !== 5601) return false
 
         // Check if addressed to us
         const isForUs = event.tags && event.tags.some(tag =>
@@ -333,7 +333,7 @@ class DVMTestClient {
 
     async subscribeToResponses() {
         const subscription = {
-            kinds: [5601], // FIXED: Correct DVM response kind (was 6600)
+            kinds: [5601],
             '#p': [this.publicKey], // Responses addressed to us
             since: Math.floor(Date.now() / 1000) - 300 // Last 5 minutes
         }
