@@ -149,7 +149,7 @@ const ConnectionPanel = ({ isConnected, privateKey, dvmPublicKey, onConnect, onD
                     <div className={`p-2 rounded-lg ${isDark ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-600'}`}>
                         <Key className="w-5 h-5" />
                     </div>
-                    <h3 className="text-lg font-semibold">Client Configuration</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Client Configuration</h3>
                 </div>
 
                 {isConnected && (
@@ -194,7 +194,7 @@ const ConnectionPanel = ({ isConnected, privateKey, dvmPublicKey, onConnect, onD
                                 <Wallet className="w-5 h-5" />
                             </div>
                             <div className="text-left">
-                                <div className="font-medium text-sm flex items-center space-x-2">
+                                <div className="font-medium text-sm flex items-center space-x-2 text-gray-900 dark:text-gray-100">
                                     <span>Alby Wallet</span>
                                     {!isAlbyAvailable && (
                                         <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400">
@@ -234,7 +234,7 @@ const ConnectionPanel = ({ isConnected, privateKey, dvmPublicKey, onConnect, onD
                                 <Key className="w-5 h-5" />
                             </div>
                             <div className="text-left">
-                                <div className="font-medium text-sm">Manual Key</div>
+                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100">Manual Key</div>
                                 <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                     Enter or generate private key
                                 </div>
