@@ -28,7 +28,6 @@ export class NostrClient {
             'wss://relay.damus.io',
             'wss://relay.snort.social',
             'wss://nos.lol',
-            'wss://relay.nostr.band'
         ]
 
         console.log('🔮 NostrClient initialized')
@@ -52,7 +51,6 @@ export class NostrClient {
 
         // Subscribe to DVM responses
         await this.subscribeToResponses()
-
         return connected
     }
 
@@ -63,7 +61,7 @@ export class NostrClient {
                 const timeout = setTimeout(() => {
                     ws.close()
                     reject(new Error(`Connection timeout: ${relayUrl}`))
-                }, 10000)
+                }, 15000) // Increased timeout to 15 seconds
 
                 ws.onopen = () => {
                     clearTimeout(timeout)
@@ -74,22 +72,17 @@ export class NostrClient {
 
                 ws.onerror = (error) => {
                     clearTimeout(timeout)
-                    console.log(`  ✗ Failed to connect to ${relayUrl}:`, error.message || 'Connection failed')
+                    console.log(`  ✗ Failed to connect to ${relayUrl}:`, error.message || 'Unknown error')
                     reject(error)
                 }
 
                 ws.onmessage = (event) => {
-                    this.handleRelayMessage(relayUrl, event.data)
+                    this.handleMessage(relayUrl, event.data)
                 }
 
                 ws.onclose = (event) => {
                     this.connections.delete(relayUrl)
-                    console.log(`  ⚠ Disconnected from ${relayUrl}`, event.code)
-
-                    // Notify error handler if connection is unexpectedly closed
-                    if (this.onError && event.code !== 1000) {
-                        this.onError(new Error(`Lost connection to ${relayUrl}`))
-                    }
+                    console.log(`  ⚠ Disconnected from ${relayUrl} (${event.code})`)
                 }
 
             } catch (error) {
@@ -98,39 +91,44 @@ export class NostrClient {
         })
     }
 
-    handleRelayMessage(relayUrl, message) {
+    handleMessage(relayUrl, message) {
         try {
-            const [messageType, subscriptionId, event] = JSON.parse(message)
+            const parsed = JSON.parse(message)
+            const [messageType, subscriptionId, event] = parsed
 
             switch (messageType) {
                 case 'EVENT':
                     if (this.isDVMResponse(event)) {
-                        console.log('🎉 Received DVM response from', relayUrl)
+                        console.log(`📨 Received DVM response from ${relayUrl}`)
                         this.handleDVMResponse(event)
                     }
                     break
                 case 'NOTICE':
                     console.log(`📢 Notice from ${relayUrl}:`, subscriptionId)
-                    // Some notices might be important for debugging
-                    if (subscriptionId && subscriptionId.includes('error')) {
-                        this.onError?.(new Error(`Relay notice: ${subscriptionId}`))
+                    if (this.onError) {
+                        this.onError(new Error(`Relay notice: ${subscriptionId}`))
                     }
                     break
                 case 'EOSE':
                     console.log(`📄 End of stored events from ${relayUrl}`)
                     break
                 case 'OK':
-                    const [, eventId, accepted, reason] = JSON.parse(message)
+                    const [, eventId, accepted, reason] = parsed
                     if (accepted) {
                         console.log(`✅ Event accepted by ${relayUrl}:`, eventId?.substring(0, 8))
                     } else {
                         console.log(`❌ Event rejected by ${relayUrl}:`, reason)
-                        this.onError?.(new Error(`Event rejected by ${relayUrl}: ${reason}`))
+                        if (this.onError) {
+                            this.onError(new Error(`Event rejected by ${relayUrl}: ${reason}`))
+                        }
                     }
                     break
                 case 'AUTH':
                     console.log(`🔐 Auth challenge from ${relayUrl}`)
-                    // Handle AUTH if needed
+                    // Handle AUTH if needed in the future
+                    break
+                default:
+                    console.log(`❓ Unknown message type from ${relayUrl}:`, messageType)
                     break
             }
         } catch (error) {
@@ -193,6 +191,10 @@ export class NostrClient {
     }
 
     async sendRequest(requestData) {
+        if (!this.isReady()) {
+            throw new Error('Client not ready - not connected to any relays')
+        }
+
         const { requestType, threatLevel, maxResults, useCase, context, currentRelays } = requestData
 
         const requestEvent = {
@@ -250,6 +252,7 @@ export class NostrClient {
         const successful = results.filter(r => r.status === 'fulfilled').length
 
         console.log(`📤 Request sent to ${successful}/${this.connections.size} relays`)
+        console.log(`🔍 Request ID: ${signedEvent.id}`)
 
         if (successful === 0) {
             throw new Error('Failed to send request to any relay')
@@ -269,7 +272,36 @@ export class NostrClient {
                 const eventMessage = ['EVENT', event]
                 ws.send(JSON.stringify(eventMessage))
                 console.log(`  → Sent to ${relayUrl}`)
-                resolve()
+
+                // Set up a timeout for the OK response
+                const timeout = setTimeout(() => {
+                    console.log(`  ⏰ Timeout waiting for OK from ${relayUrl}`)
+                    resolve() // Don't reject on timeout, just resolve
+                }, 5000)
+
+                // Listen for OK response (this is simplified - in production you'd track this better)
+                const originalOnMessage = ws.onmessage
+                ws.onmessage = (messageEvent) => {
+                    // Call original handler first
+                    if (originalOnMessage) {
+                        originalOnMessage(messageEvent)
+                    }
+
+                    try {
+                        const [messageType, eventId, accepted] = JSON.parse(messageEvent.data)
+                        if (messageType === 'OK' && eventId === event.id) {
+                            clearTimeout(timeout)
+                            if (accepted) {
+                                resolve()
+                            } else {
+                                reject(new Error(`Event rejected by ${relayUrl}`))
+                            }
+                        }
+                    } catch (e) {
+                        // Ignore parsing errors for other messages
+                    }
+                }
+
             } catch (error) {
                 console.error(`Failed to send to ${relayUrl}:`, error)
                 reject(error)
@@ -334,5 +366,50 @@ export class NostrClient {
             }
         }
         return stats
+    }
+
+    // Method to add additional relays
+    async addRelay(relayUrl) {
+        if (!this.relays.includes(relayUrl)) {
+            this.relays.push(relayUrl)
+            try {
+                await this.connectToRelay(relayUrl)
+                console.log(`✅ Added and connected to ${relayUrl}`)
+                return true
+            } catch (error) {
+                console.error(`❌ Failed to connect to new relay ${relayUrl}:`, error)
+                return false
+            }
+        }
+        return false
+    }
+
+    // Method to remove relays
+    removeRelay(relayUrl) {
+        const ws = this.connections.get(relayUrl)
+        if (ws) {
+            ws.close()
+            this.connections.delete(relayUrl)
+        }
+        this.relays = this.relays.filter(r => r !== relayUrl)
+        console.log(`🗑️ Removed relay ${relayUrl}`)
+    }
+
+    // Method to reconnect to all relays
+    async reconnectAll() {
+        console.log('🔄 Reconnecting to all relays...')
+
+        // Close existing connections
+        Array.from(this.connections.values()).forEach(ws => {
+            try {
+                ws.close()
+            } catch (error) {
+                console.warn('Error closing connection during reconnect:', error)
+            }
+        })
+        this.connections.clear()
+
+        // Reconnect
+        return await this.connect()
     }
 }

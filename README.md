@@ -109,33 +109,20 @@ ENABLE_WEB_DEMO=true
 ```bash
 # Run comprehensive setup (creates analytics tables, functions, and sample data)
 npm run setup
-
-# Alternative: step-by-step setup
-npm run setup:basic
-npm run setup:analytics
-npm run setup:demo-data
 ```
 
 ### Start the System
 
 ```bash
-# Production mode
-npm start
-
-# Development mode with auto-restart
-npm run dev
-
-# Start only the DVM (no web interface)
+# Start only the DVM
 npm run dvm
 
-# Start only the web demo
+# Start only the client
 npm run web
 ```
 
 ### Access the Demo
 - **Web Interface**: http://localhost:3000
-- **DVM Pubkey**: Check logs for the DVM's public key
-- **Test Relays**: wss://relay.damus.io, wss://relay.snort.social
 
 ---
 

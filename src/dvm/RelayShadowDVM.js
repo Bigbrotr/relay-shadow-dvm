@@ -9,7 +9,7 @@ class RelayShadowDVM {
         this.db = new Pool(config.database);
         this.privateKey = config.privateKey || generatePrivateKey();
         this.publicKey = getPublicKey(this.privateKey);
-        this.dvmRelays = config.dvmRelays || ['wss://relay.damus.io', 'wss://relay.snort.social'];
+        this.dvmRelays = config.dvmRelays || ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol'];
 
         // DVM Configuration
         this.dvmKind = 5600; // DVM request kind

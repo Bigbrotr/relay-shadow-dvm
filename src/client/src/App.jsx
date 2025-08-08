@@ -58,6 +58,9 @@ const App = () => {
 
   const handleConnect = async (clientPrivateKey, dvmPubkey, signFunction = null, albyPublicKey = null) => {
     try {
+      setIsConnected(false)
+      setCurrentRequest(null)
+
       let client
 
       if (signFunction && albyPublicKey) {
@@ -67,20 +70,24 @@ const App = () => {
         toast.success('Connecting via Alby wallet...', { duration: 2000 })
       } else {
         // Manual connection
+        if (!clientPrivateKey || !dvmPubkey) {
+          throw new Error('Private key and DVM public key are required')
+        }
         client = new NostrClient(clientPrivateKey, dvmPubkey)
         setUserPublicKey(client.publicKey)
         setPrivateKey(clientPrivateKey)
       }
 
-      await client.connect()
-
+      // Set up event handlers before connecting
       client.onResponse = (response) => {
+        console.log('📨 Received DVM response:', response)
         setResponses(prev => [response, ...prev])
         setCurrentRequest(null)
 
         // Show success toast for response
         if (response.type === 'relay_recommendations') {
-          toast.success(`Received ${response.recommendations?.primary?.length || 0} recommendations!`)
+          const count = response.recommendations?.primary?.length || 0
+          toast.success(`Received ${count} relay recommendations!`)
         } else if (response.type === 'error') {
           toast.error(`DVM Error: ${response.error}`)
         } else {
@@ -89,26 +96,44 @@ const App = () => {
       }
 
       client.onError = (error) => {
+        console.error('Client error:', error)
         toast.error(`Connection error: ${error.message}`)
+        setCurrentRequest(null)
       }
 
-      setNostrClient(client)
-      setIsConnected(true)
-      setDvmPublicKey(dvmPubkey)
+      // Connect to relays
+      const connected = await client.connect()
+
+      if (connected > 0) {
+        setNostrClient(client)
+        setIsConnected(true)
+        setDvmPublicKey(dvmPubkey)
+        console.log('✅ Successfully connected to DVM')
+      } else {
+        throw new Error('Failed to connect to any relays')
+      }
 
     } catch (error) {
       console.error('Connection failed:', error)
+      setIsConnected(false)
+      setNostrClient(null)
       throw error
     }
   }
 
   const handleDisconnect = async () => {
-    if (nostrClient) {
-      await nostrClient.disconnect()
+    try {
+      if (nostrClient) {
+        await nostrClient.disconnect()
+      }
       setNostrClient(null)
       setIsConnected(false)
       setCurrentRequest(null)
       setUserPublicKey('')
+      console.log('🔌 Disconnected from DVM')
+    } catch (error) {
+      console.error('Disconnect error:', error)
+      toast.error('Error during disconnect')
     }
   }
 
@@ -118,7 +143,18 @@ const App = () => {
       return
     }
 
+    if (!nostrClient.isReady()) {
+      toast.error('Client not ready - please reconnect')
+      return
+    }
+
     try {
+      console.log('📤 Sending request:', requestData)
+
+      // Clear any previous request
+      setCurrentRequest(null)
+
+      // Send the request
       const request = await nostrClient.sendRequest(requestData)
       setCurrentRequest(request)
 
@@ -130,9 +166,20 @@ const App = () => {
         health: 'Checking network health status...'
       }
 
-      toast.success(requestTypes[requestData.requestType] || 'Processing your request...')
+      toast.success(requestTypes[requestData.requestType] || 'Processing your request...', {
+        duration: 3000
+      })
+
+      // Set a timeout to clear the request if no response comes
+      setTimeout(() => {
+        if (currentRequest && currentRequest.id === request.id) {
+          setCurrentRequest(null)
+          toast.error('Request timeout - no response received')
+        }
+      }, 30000) // 30 second timeout
 
     } catch (error) {
+      console.error('Request failed:', error)
       toast.error(`Request failed: ${error.message}`)
       setCurrentRequest(null)
       throw error
@@ -143,31 +190,31 @@ const App = () => {
     setDvmInfo(info)
   }
 
+  const toggleTheme = () => {
+    setIsDark(!isDark)
+  }
+
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-dark-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <div className="relative">
-        {/* Enhanced animated background */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse-slow"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse-slow" style={{ animationDelay: '4s' }}></div>
-        </div>
+    <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-dark-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'}`}>
+      <div className="relative overflow-hidden">
+        {/* Background gradient effects */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 animate-pulse" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-r from-pink-400/30 to-rose-400/30 rounded-full blur-3xl animate-blob" />
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-gradient-to-r from-cyan-400/30 to-blue-400/30 rounded-full blur-3xl animate-blob animation-delay-2000" />
+        <div className="absolute -bottom-8 left-1/3 w-96 h-96 bg-gradient-to-r from-violet-400/30 to-purple-400/30 rounded-full blur-3xl animate-blob animation-delay-4000" />
 
-        <div className="relative z-10 max-w-7xl mx-auto">
-          <Header
-            isDark={isDark}
-            setIsDark={setIsDark}
-            isConnected={isConnected}
-            userPublicKey={userPublicKey}
-            dvmInfo={dvmInfo}
-          />
+        {/* Main content */}
+        <div className="relative z-10">
+          {/* Header */}
+          <Header isDark={isDark} onToggleTheme={toggleTheme} />
 
-          <div className="px-6 pb-6">
+          {/* Main container */}
+          <div className="container mx-auto px-4 py-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className={`rounded-2xl shadow-2xl overflow-hidden backdrop-blur-sm ${isDark ? 'bg-dark-800/50 border border-dark-700' : 'bg-white/50 border border-gray-200'
+              transition={{ duration: 0.6 }}
+              className={`backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-dark-800/50 border border-dark-700' : 'bg-white/50 border border-gray-200'
                 }`}
             >
               <ConnectionPanel
@@ -230,6 +277,23 @@ const App = () => {
                 <p className="text-xs mt-1 font-mono">
                   DVM: {dvmInfo.publicKey?.substring(0, 16)}...
                 </p>
+              </motion.div>
+            )}
+
+            {/* Debug info for development */}
+            {process.env.NODE_ENV === 'development' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className={`mt-4 p-3 rounded-lg text-xs font-mono ${isDark ? 'bg-dark-800/50 text-gray-400' : 'bg-white/50 text-gray-600'
+                  }`}
+              >
+                <div>Connected: {isConnected.toString()}</div>
+                <div>Client Ready: {nostrClient?.isReady()?.toString() || 'false'}</div>
+                <div>Active Connections: {nostrClient?.connections?.size || 0}</div>
+                <div>Current Request: {currentRequest?.id?.substring(0, 8) || 'none'}</div>
+                <div>Total Responses: {responses.length}</div>
               </motion.div>
             )}
           </div>
