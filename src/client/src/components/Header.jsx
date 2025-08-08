@@ -32,49 +32,46 @@ const Header = ({ isDark, setIsDark, isConnected, userPublicKey, dvmInfo }) => {
                                 whileHover={{ scale: 1.05, rotate: 5 }}
                                 whileTap={{ scale: 0.95 }}
                             >
-                                <div className="w-16 h-16 bg-white/20 rounded-2xl backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
+                                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 shadow-lg">
                                     <Eye className="w-8 h-8 text-white" />
                                 </div>
-                                {isConnected && (
-                                    <motion.div
-                                        className="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full border-2 border-white shadow-lg"
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                    />
-                                )}
+                                <motion.div
+                                    className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full"
+                                    animate={{ scale: [1, 1.2, 1] }}
+                                    transition={{ duration: 2, repeat: Infinity }}
+                                />
                             </motion.div>
 
                             <div>
                                 <motion.h1
-                                    className="text-4xl font-bold text-white mb-2"
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.2 }}
+                                    transition={{ delay: 0.2, duration: 0.6 }}
+                                    className="text-3xl font-bold text-white"
                                 >
                                     Relay Shadow
                                 </motion.h1>
                                 <motion.p
-                                    className="text-white/80 text-lg"
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.3 }}
+                                    transition={{ delay: 0.4, duration: 0.6 }}
+                                    className="text-white/80 text-sm"
                                 >
-                                    Privacy-Focused Nostr Relay Intelligence
+                                    Privacy-Focused Relay Recommendations
                                 </motion.p>
                             </div>
                         </div>
 
-                        {/* Status and Controls */}
+                        {/* Header Actions */}
                         <div className="flex items-center space-x-4">
                             {/* Connection Status */}
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.4 }}
-                                className={`flex items-center space-x-3 px-4 py-3 rounded-xl backdrop-blur-sm border shadow-lg ${isConnected
+                                transition={{ delay: 0.3 }}
+                                className={`px-4 py-2 rounded-xl backdrop-blur-sm border transition-all ${isConnected
                                     ? 'bg-green-500/20 border-green-400/50 text-green-100'
-                                    : 'bg-white/10 border-white/30 text-white/70'
+                                    : 'bg-white/10 border-white/30 text-white/80'
                                     }`}
                             >
                                 <div className="flex items-center space-x-2">
@@ -86,7 +83,7 @@ const Header = ({ isDark, setIsDark, isConnected, userPublicKey, dvmInfo }) => {
                                 </div>
 
                                 {isConnected && userPublicKey && (
-                                    <div className="flex items-center space-x-2 pl-2 border-l border-white/20">
+                                    <div className="flex items-center space-x-2 pl-2 border-l border-white/20 mt-1">
                                         <Wallet className="w-4 h-4" />
                                         <span className="text-xs font-mono">
                                             {userPublicKey.substring(0, 8)}...
@@ -110,82 +107,59 @@ const Header = ({ isDark, setIsDark, isConnected, userPublicKey, dvmInfo }) => {
                         </div>
                     </div>
 
-                    {/* DVM Info Bar */}
-                    {dvmInfo && (
-                        <motion.div
-                            className="mb-6 p-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.6 }}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <Shield className="w-5 h-5 text-white/80" />
-                                    <div>
-                                        <p className="text-white/90 font-medium text-sm">
-                                            Connected to Relay Shadow DVM
-                                        </p>
-                                        <p className="text-white/60 text-xs font-mono">
-                                            {dvmInfo.publicKey?.substring(0, 16)}...
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center space-x-4 text-white/70">
-                                    <div className="text-xs">
-                                        <span className="font-medium">{dvmInfo.relays?.length || 0}</span> relays
-                                    </div>
-                                    <div className="text-xs">
-                                        <span className="font-medium">{dvmInfo.supportedRequests?.length || 0}</span> services
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* Hackathon Badge */}
+                    {/* Feature highlights */}
                     <motion.div
-                        className="text-center"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6, duration: 0.6 }}
+                        className="grid grid-cols-1 md:grid-cols-3 gap-4"
                     >
-                        <div className="inline-flex items-center space-x-3 px-6 py-3 rounded-full bg-white/10 backdrop-blur-sm border border-white/30 text-white/90">
-                            <span className="text-xl">🏆</span>
-                            <span className="font-semibold">Bitcoin++ Privacy Edition Hackathon 2025</span>
-                            <span className="text-white/60">•</span>
-                            <div className="flex items-center space-x-2">
-                                <Zap className="w-4 h-4 text-yellow-300" />
-                                <span className="text-white/70 font-medium">Powered by BigBrotr Dataset</span>
+                        <div className="flex items-center space-x-3 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+                            <Shield className="w-6 h-6 text-white/90" />
+                            <div>
+                                <h3 className="font-semibold text-white text-sm">Privacy-First</h3>
+                                <p className="text-white/70 text-xs">Threat model based recommendations</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center space-x-3 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+                            <Zap className="w-6 h-6 text-white/90" />
+                            <div>
+                                <h3 className="font-semibold text-white text-sm">Real-time Analysis</h3>
+                                <p className="text-white/70 text-xs">Live relay performance metrics</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center space-x-3 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+                            <Eye className="w-6 h-6 text-white/90" />
+                            <div>
+                                <h3 className="font-semibold text-white text-sm">Shadow Analysis</h3>
+                                <p className="text-white/70 text-xs">Comprehensive network insights</p>
                             </div>
                         </div>
                     </motion.div>
 
-                    {/* Feature highlights */}
-                    <motion.div
-                        className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.8 }}
-                    >
-                        {[
-                            { icon: Shield, title: 'Threat-Level Based', desc: 'From casual to nation-state' },
-                            { icon: Eye, title: '800+ Relays Analyzed', desc: 'Real network intelligence' },
-                            { icon: Zap, title: 'Social Graph Integration', desc: 'Personalized recommendations' }
-                        ].map((feature, i) => (
-                            <motion.div
-                                key={i}
-                                className="flex items-center space-x-3 p-3 rounded-lg bg-white/5 backdrop-blur-sm"
-                                whileHover={{ scale: 1.02, backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-                                transition={{ duration: 0.2 }}
-                            >
-                                <feature.icon className="w-5 h-5 text-white/70" />
-                                <div>
-                                    <p className="text-white/90 font-medium text-sm">{feature.title}</p>
-                                    <p className="text-white/60 text-xs">{feature.desc}</p>
+                    {/* DVM Status */}
+                    {dvmInfo && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.8 }}
+                            className="mt-4 p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                                    <span className="text-white/90 text-sm font-medium">
+                                        DVM Active • {dvmInfo.relays?.length || 0} relays monitored
+                                    </span>
                                 </div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
+                                <span className="text-white/70 text-xs font-mono">
+                                    {dvmInfo.publicKey?.substring(0, 16)}...
+                                </span>
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
             </div>
         </motion.div>

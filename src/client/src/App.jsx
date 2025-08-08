@@ -79,45 +79,47 @@ const App = () => {
         toast.success('Connecting via Alby wallet...', { duration: 2000 })
       } else {
         // Manual connection - FIXED: Constructor signature
-        if (!clientPrivateKey || !dvmPubkey) {
-          throw new Error('Private key and DVM public key are required')
+        if (!clientPrivateKey || clientPrivateKey.length !== 64) {
+          throw new Error('Invalid private key - must be 64 characters')
         }
 
         client = new NostrClient(dvmPubkey, {
           useAlby: false,
-          signFunction: null,
           privateKey: clientPrivateKey,
           relays: ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol', 'wss://relay.nostr.band']
         })
 
         setUserPublicKey(client.publicKey)
         setPrivateKey(clientPrivateKey)
+        toast.success('Connecting with private key...', { duration: 2000 })
       }
 
-      // CRITICAL: Validate that dvmPublicKey was set correctly
-      if (!client.dvmPublicKey) {
-        throw new Error('DVM public key was not set correctly')
-      }
+      client.onResponse = (responseData, event) => {
+        console.log('📥 Received DVM response:', responseData)
 
-      console.log('🔧 Client Debug Info:')
-      console.log('  - DVM Public Key:', client.dvmPublicKey)
-      console.log('  - Client Public Key:', client.publicKey)
-      console.log('  - Use Alby:', client.useAlby)
+        const newResponse = {
+          id: event.id,
+          timestamp: Date.now(),
+          data: responseData,
+          requestId: currentRequest?.id
+        }
 
-      // Set up event handlers before connecting
-      client.onResponse = (response) => {
-        console.log('📨 Received DVM response:', response)
-        setResponses(prev => [response, ...prev])
+        setResponses(prev => [newResponse, ...prev])
         setCurrentRequest(null)
 
-        // Show success toast for response
-        if (response.type === 'relay_recommendations') {
-          const count = response.recommendations?.primary?.length || 0
-          toast.success(`Received ${count} relay recommendations!`)
-        } else if (response.type === 'error') {
-          toast.error(`DVM Error: ${response.error}`)
+        // Show success toast
+        const responseTypes = {
+          relay_recommendations: `Received ${responseData.recommendations?.length || 0} relay recommendations`,
+          setup_analysis: 'Analysis complete - check your privacy score',
+          discovery_recommendations: `Found ${responseData.recommendations?.length || 0} new relays to explore`,
+          health_summary: 'Network health data updated',
+          error: `Error: ${responseData.error}`
+        }
+
+        if (responseData.type === 'error') {
+          toast.error(responseTypes[responseData.type] || 'Request failed')
         } else {
-          toast.success('Response received from DVM!')
+          toast.success(responseTypes[responseData.type] || 'Response received')
         }
       }
 
@@ -231,8 +233,14 @@ const App = () => {
 
         {/* Main content */}
         <div className="relative z-10">
-          {/* Header */}
-          <Header isDark={isDark} onToggleTheme={toggleTheme} />
+          {/* Header - FIXED: Pass correct props */}
+          <Header
+            isDark={isDark}
+            setIsDark={setIsDark}
+            isConnected={isConnected}
+            userPublicKey={userPublicKey}
+            dvmInfo={dvmInfo}
+          />
 
           {/* Main container */}
           <div className="container mx-auto px-4 py-8">
@@ -240,8 +248,7 @@ const App = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className={`backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-dark-800/50 border border-dark-700' : 'bg-white/50 border border-gray-200'
-                }`}
+              className={`backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-dark-800/50 border border-dark-700' : 'bg-white/50 border border-gray-200'}`}
             >
               <ConnectionPanel
                 isConnected={isConnected}
@@ -293,14 +300,13 @@ const App = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className={`mt-6 p-4 rounded-xl text-center text-sm ${isDark ? 'bg-dark-800/30 text-gray-400' : 'bg-white/30 text-gray-600'
-                  }`}
+                className={`mt-6 p-4 rounded-xl text-center text-sm ${isDark ? 'bg-dark-800/30 text-gray-300' : 'bg-white/30 text-gray-700'}`}
               >
                 <p>
                   Connected to Relay Shadow DVM • {dvmInfo.relays?.length || 0} relays •
                   {dvmInfo.supportedRequests?.length || 0} services available
                 </p>
-                <p className="text-xs mt-1 font-mono">
+                <p className="text-xs mt-1 font-mono opacity-75">
                   DVM: {dvmInfo.publicKey?.substring(0, 16)}...
                 </p>
               </motion.div>
@@ -312,8 +318,7 @@ const App = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 1 }}
-                className={`mt-4 p-3 rounded-lg text-xs font-mono ${isDark ? 'bg-dark-800/50 text-gray-400' : 'bg-white/50 text-gray-600'
-                  }`}
+                className={`mt-4 p-3 rounded-lg text-xs font-mono ${isDark ? 'bg-dark-800/50 text-gray-300' : 'bg-white/50 text-gray-700'}`}
               >
                 <div>Connected: {isConnected.toString()}</div>
                 <div>Client Ready: {nostrClient?.isReady()?.toString() || 'false'}</div>

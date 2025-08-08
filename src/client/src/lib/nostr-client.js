@@ -253,65 +253,47 @@ export class NostrClient {
 
     handleDVMResponse(event) {
         try {
-            const response = {
-                id: event.id,
-                timestamp: event.created_at,
-                content: event.content,
-                tags: event.tags,
-                raw: event
+            console.log(`📥 Processing DVM response: ${event.id.substring(0, 8)}`)
+
+            const responseData = JSON.parse(event.content)
+            console.log('📊 Response data:', responseData)
+
+            // Clear any pending request timeout
+            if (this.pendingRequests.has(event.id)) {
+                clearTimeout(this.pendingRequests.get(event.id))
+                this.pendingRequests.delete(event.id)
             }
 
-            // Parse response type and data from tags
-            const responseTypeTag = event.tags.find(tag => tag[0] === 'response_type')
-            if (responseTypeTag) {
-                response.type = responseTypeTag[1]
-            }
-
-            // Extract structured data from content
-            try {
-                const parsedContent = JSON.parse(event.content)
-                response.data = parsedContent
-            } catch {
-                // Content is not JSON, keep as string
-                response.data = event.content
-            }
-
-            console.log('📨 Parsed DVM response:', response.type || 'unknown')
-
+            // Call the response handler
             if (this.onResponse) {
-                this.onResponse(response)
+                this.onResponse(responseData, event)
             }
 
         } catch (error) {
-            console.error('Error handling DVM response:', error)
+            console.error('Failed to process DVM response:', error)
             if (this.onError) {
-                this.onError(error)
+                this.onError(new Error(`Failed to process response: ${error.message}`))
             }
         }
     }
 
     async subscribeToDVMResponses() {
-        if (!this.isReady()) {
-            throw new Error('Client not ready')
+        const subscription = {
+            kinds: [5601], // DVM response kind
+            '#p': [this.publicKey], // Responses addressed to us
+            since: Math.floor(Date.now() / 1000) - 60 // Last minute
         }
 
-        const subscriptionId = 'dvm-responses-' + Math.random().toString(36).substring(7)
+        const subscriptionId = `dvm-responses-${Date.now()}`
+        this.subscriptions.set(subscriptionId, subscription)
 
-        const subscription = [
-            'REQ',
-            subscriptionId,
-            {
-                kinds: [5601], // DVM response kind - FIXED
-                '#p': [this.publicKey], // Responses to our public key
-                since: Math.floor(Date.now() / 1000) - 300 // FIXED: Last 5 minutes (was 60 seconds)
-            }
-        ]
+        const subscribeMessage = ['REQ', subscriptionId, subscription]
 
         let subscribed = 0
         for (const [url, ws] of this.connections.entries()) {
             if (ws.readyState === WebSocket.OPEN) {
                 try {
-                    ws.send(JSON.stringify(subscription))
+                    ws.send(JSON.stringify(subscribeMessage))
                     subscribed++
                     console.log(`📡 Subscribed to DVM responses on ${url}`)
                 } catch (error) {
@@ -341,7 +323,7 @@ export class NostrClient {
                 ['param', 'request_type', requestType],
                 ['param', 'threat_level', threatLevel || 'medium'],
                 ['param', 'max_results', String(maxResults || 10)],
-                ['relays', ...this.relayUrls] // ADDED: Include relay hint
+                ['relays', ...this.relays] // FIXED: Use this.relays instead of this.relayUrls
             ],
             content: context || `Request ${requestType} with threat level ${threatLevel}`,
         }
@@ -430,6 +412,16 @@ export class NostrClient {
                 reject(error)
             }
         })
+    }
+
+    async signEvent(event) {
+        if (this.useAlby && this.signFunction) {
+            // Use Alby for signing
+            return await this.signFunction(event)
+        } else {
+            // Use private key for signing
+            return finishEvent(event, this.privateKey)
+        }
     }
 
     async disconnect() {
