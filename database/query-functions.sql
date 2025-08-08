@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION get_user_relay_recommendations(
 BEGIN
     RETURN QUERY
     WITH user_following AS (
-        -- FIXED: Get users that this user follows - removed problematic ORDER BY with DISTINCT
+        -- Get users that this user follows
         SELECT DISTINCT (tag->>1)::TEXT as followed_pubkey
         FROM events e,
              jsonb_array_elements(e.tags) as tag
@@ -83,11 +83,11 @@ BEGIN
     )
     SELECT 
         sr.url,
-        ROUND(sr.threat_adjusted_score + sr.following_bonus, 2) as overall_score,
-        ROUND(COALESCE(sr.privacy_score, 0), 2) as privacy_score,
-        ROUND(COALESCE(sr.reliability_score, 0), 2) as reliability_score,
+        CAST(sr.threat_adjusted_score + sr.following_bonus AS NUMERIC(10,2)) as overall_score,
+        CAST(COALESCE(sr.privacy_score, 0) AS NUMERIC(10,2)) as privacy_score,
+        CAST(COALESCE(sr.reliability_score, 0) AS NUMERIC(10,2)) as reliability_score,
         sr.following_users_count,
-        ROUND(sr.total_influence_weight, 2) as total_influence_weight,
+        CAST(sr.total_influence_weight AS NUMERIC(10,2)) as total_influence_weight,
         
         -- Generate reasoning
         CASE 
@@ -160,7 +160,7 @@ BEGIN
         'coverage'::TEXT,
         'following_coverage'::TEXT,
         format('%s%% (%s/%s)', 
-            ROUND(covered_following * 100.0 / NULLIF(total_following, 0), 1),
+            CAST(covered_following * 100.0 / NULLIF(total_following, 0) AS NUMERIC(5,1)),
             covered_following, 
             total_following
         )::TEXT,
@@ -180,7 +180,7 @@ BEGIN
     SELECT 
         'quality'::TEXT,
         'average_privacy_score'::TEXT,
-        ROUND(AVG(rqs.privacy_score), 2)::TEXT,
+        CAST(AVG(rqs.privacy_score) AS NUMERIC(5,2))::TEXT,
         CASE 
             WHEN AVG(rqs.privacy_score) < 4.0 THEN 'Consider adding more privacy-focused relays'
             WHEN AVG(rqs.privacy_score) < 6.0 THEN 'Moderate privacy protection'
@@ -194,7 +194,7 @@ BEGIN
     SELECT 
         'quality'::TEXT,
         'average_reliability'::TEXT,
-        ROUND(AVG(rqs.reliability_score), 2)::TEXT,
+        CAST(AVG(rqs.reliability_score) AS NUMERIC(5,2))::TEXT,
         CASE 
             WHEN AVG(rqs.reliability_score) < 6.0 THEN 'Some relays may be unreliable'
             WHEN AVG(rqs.reliability_score) < 8.0 THEN 'Generally reliable relay selection'
@@ -221,8 +221,6 @@ $$ LANGUAGE plpgsql;
 
 -- 3. Get discovery recommendations (relays with quality content user doesn't follow)
 CREATE OR REPLACE FUNCTION get_discovery_relays(
-    user_pubkey TEXT,
-    current_relays TEXT[] DEFAULT ARRAY[]::TEXT[],
     max_results INT DEFAULT 5
 ) RETURNS TABLE(
     relay_url TEXT,
@@ -233,55 +231,34 @@ CREATE OR REPLACE FUNCTION get_discovery_relays(
 ) AS $$
 BEGIN
     RETURN QUERY
-    WITH user_following AS (
-        -- Get users that this user follows
-        SELECT DISTINCT (tag->>1)::TEXT as followed_pubkey
-        FROM events e,
-             jsonb_array_elements(e.tags) as tag
-        WHERE e.pubkey = user_pubkey 
-          AND e.kind = 3
-          AND tag->>0 = 'p'
-        ORDER BY e.created_at DESC
-        LIMIT 500
-    ),
-    discovery_candidates AS (
+    WITH discovery_candidates AS (
         SELECT 
             rpw.relay_url,
             COUNT(DISTINCT rpw.pubkey) as unique_publishers,
-            COUNT(DISTINCT CASE 
-                WHEN uf.followed_pubkey IS NULL THEN rpw.pubkey 
-            END) as unfollowed_publishers,
-            AVG(CASE 
-                WHEN uf.followed_pubkey IS NULL THEN rpw.publisher_influence 
-            END) as avg_unfollowed_influence,
-            AVG(rpw.publisher_influence) as avg_all_influence
+            AVG(rpw.publisher_influence) as avg_influence
         FROM relay_publisher_weights rpw
-        LEFT JOIN user_following uf ON rpw.pubkey = uf.followed_pubkey
-        WHERE rpw.relay_url != ALL(current_relays)  -- Exclude current relays
-          AND rpw.publisher_influence > 2.0  -- Only quality publishers
+        WHERE rpw.publisher_influence > 2.0  -- Only quality publishers
         GROUP BY rpw.relay_url
-        HAVING COUNT(DISTINCT CASE 
-            WHEN uf.followed_pubkey IS NULL THEN rpw.pubkey 
-        END) >= 3  -- At least 3 quality unfollowed publishers
+        HAVING COUNT(DISTINCT rpw.pubkey) >= 3  -- At least 3 quality publishers
     )
     SELECT 
         dc.relay_url,
-        ROUND(
-            -- Score based on unfollowed publisher quality and count
-            (dc.avg_unfollowed_influence * 2.0) + 
-            (LOG(dc.unfollowed_publishers) * 1.5) +
+        CAST(
+            -- Score based on publisher quality and count
+            (dc.avg_influence * 2.0) + 
+            (LOG(dc.unique_publishers) * 1.5) +
             -- Bonus for overall relay quality
-            (rr.overall_score * 0.3)
-        , 2) as discovery_score,
-        dc.unfollowed_publishers as unique_quality_publishers,
-        ROUND(dc.avg_unfollowed_influence, 2) as avg_publisher_influence,
+            (COALESCE(rr.overall_score, 0) * 0.3)
+        AS NUMERIC(10,2)) as discovery_score,
+        dc.unique_publishers as unique_quality_publishers,
+        CAST(dc.avg_influence AS NUMERIC(5,2)) as avg_publisher_influence,
         
         CASE 
-            WHEN dc.unfollowed_publishers > 10 AND dc.avg_unfollowed_influence > 5.0 THEN
-                format('Hidden gem: %s high-influence publishers you don''t follow yet', dc.unfollowed_publishers)
-            WHEN dc.avg_unfollowed_influence > 7.0 THEN
+            WHEN dc.unique_publishers > 10 AND dc.avg_influence > 5.0 THEN
+                format('Hidden gem: %s high-influence publishers', dc.unique_publishers)
+            WHEN dc.avg_influence > 7.0 THEN
                 'High-influence publishers worth discovering'
-            WHEN dc.unfollowed_publishers > 15 THEN
+            WHEN dc.unique_publishers > 15 THEN
                 'Large community of quality publishers to explore'
             ELSE
                 'Quality publishers for content discovery'
@@ -297,53 +274,28 @@ $$ LANGUAGE plpgsql;
 
 -- 4. Get relay health monitoring data
 CREATE OR REPLACE FUNCTION get_relay_health_summary()
-RETURNS TABLE(
-    relay_url TEXT,
-    health_status TEXT,
-    uptime_7d NUMERIC,
-    avg_latency_ms INT,
-    recent_events_24h BIGINT,
-    issues TEXT[]
-) AS $$
+RETURNS JSONB AS $$
+DECLARE
+    result JSONB;
 BEGIN
-    RETURN QUERY
-    SELECT 
-        ra.url,
-        CASE 
-            WHEN ra.current_status = false THEN 'DOWN'
-            WHEN ra.uptime_percentage < 0.8 THEN 'UNSTABLE'
-            WHEN ra.avg_rtt_read > 2000 THEN 'SLOW'
-            WHEN ra.recent_events_30d = 0 THEN 'INACTIVE'
-            ELSE 'HEALTHY'
-        END as health_status,
-        
-        ROUND(ra.uptime_percentage * 100, 2) as uptime_7d,
-        ROUND(ra.avg_rtt_read)::INT as avg_latency_ms,
-        
-        -- Events in last 24h (approximate)
-        (
-            SELECT COUNT(*)
-            FROM events_relays er
-            WHERE er.relay_url = ra.url
-              AND er.seen_at > (EXTRACT(epoch FROM NOW()) - 86400)
-        ) as recent_events_24h,
-        
-        -- Collect issues
-        ARRAY_REMOVE(ARRAY[
-            CASE WHEN ra.current_status = false THEN 'Connection failed' END,
-            CASE WHEN ra.uptime_percentage < 0.9 THEN 'Reliability issues' END,
-            CASE WHEN ra.avg_rtt_read > 1500 THEN 'High latency' END,
-            CASE WHEN ra.recent_events_30d = 0 THEN 'No recent activity' END,
-            CASE WHEN ra.events_per_day < 1 THEN 'Low activity' END
-        ], NULL) as issues
-        
-    FROM relay_analytics ra
-    ORDER BY 
-        CASE 
-            WHEN ra.current_status = false THEN 0
-            ELSE ra.uptime_percentage 
-        END DESC,
-        ra.recent_events_30d DESC;
+    SELECT jsonb_build_object(
+        'total_relays', COUNT(*),
+        'healthy_relays', COUNT(*) FILTER (WHERE 
+            current_status = true AND 
+            uptime_percentage > 0.9 AND 
+            avg_rtt_read < 1500
+        ),
+        'unhealthy_relays', COUNT(*) FILTER (WHERE 
+            current_status = false OR 
+            uptime_percentage < 0.8 OR 
+            avg_rtt_read > 2000
+        ),
+        'average_uptime', CAST(AVG(uptime_percentage * 100) AS NUMERIC(5,2)),
+        'average_latency', CAST(AVG(avg_rtt_read) AS NUMERIC(8,1))
+    ) INTO result
+    FROM relay_analytics;
+    
+    RETURN result;
 END;
 $$ LANGUAGE plpgsql;
 

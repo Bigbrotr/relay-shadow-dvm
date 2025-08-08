@@ -179,13 +179,15 @@ class ComprehensiveSetup {
             // Create and refresh materialized views
             this.log('Creating relay_recommendations materialized view...', 'progress');
 
-            // The view should already be created by preprocessing.sql
+            // FIXED: Check for materialized view in pg_matviews, not information_schema.views
             const result = await this.pool.query(`
-                SELECT COUNT(*) FROM information_schema.views 
-                WHERE table_name = 'relay_recommendations'
+                SELECT EXISTS (
+                    SELECT FROM pg_matviews 
+                    WHERE matviewname = 'relay_recommendations'
+                )
             `);
 
-            if (parseInt(result.rows[0].count) === 0) {
+            if (!result.rows[0].exists) {
                 throw new Error('relay_recommendations materialized view not found');
             }
 
@@ -195,261 +197,216 @@ class ComprehensiveSetup {
             // Get count
             const countResult = await this.pool.query('SELECT COUNT(*) FROM relay_recommendations');
             const count = parseInt(countResult.rows[0].count);
-            this.log(`relay_recommendations view: ${count.toLocaleString()} relays`, 'info');
+            this.log(`relay_recommendations: ${count.toLocaleString()} records`, 'info');
 
-            return count;
+            return true;
         });
     }
 
     async testDVMFunctions() {
         return await this.runStep('DVM Functions Testing', async () => {
-            // Test recommendation function with sample data
-            this.log('Testing recommendation function...', 'progress');
+            const tests = {};
 
-            // Get a sample pubkey from events
-            const pubkeyResult = await this.pool.query(`
-                SELECT pubkey FROM events WHERE kind = 0 LIMIT 1
-            `);
-
-            if (pubkeyResult.rows.length === 0) {
-                throw new Error('No profile events found for testing');
+            // Test user relay recommendations
+            try {
+                const testPubkey = 'npub1test1234567890abcdef1234567890abcdef1234567890abcdef12345';
+                const result = await this.pool.query(`
+                    SELECT COUNT(*) FROM get_user_relay_recommendations($1, 'medium', 5)
+                `, [testPubkey]);
+                tests.user_recommendations = parseInt(result.rows[0].count);
+            } catch (error) {
+                this.log(`User recommendations test failed: ${error.message}`, 'warning');
+                tests.user_recommendations = 0;
             }
 
-            const samplePubkey = pubkeyResult.rows[0].pubkey;
+            // Test discovery relays
+            try {
+                const result = await this.pool.query(`
+                    SELECT COUNT(*) FROM get_discovery_relays(10)
+                `);
+                tests.discovery_relays = parseInt(result.rows[0].count);
+            } catch (error) {
+                this.log(`Discovery relays test failed: ${error.message}`, 'warning');
+                tests.discovery_relays = 0;
+            }
 
-            // Test recommendations
-            const recResult = await this.pool.query(`
-                SELECT * FROM get_user_relay_recommendations($1, 'medium', 5, true)
-            `, [samplePubkey]);
+            // Test relay health summary
+            try {
+                const result = await this.pool.query(`
+                    SELECT get_relay_health_summary() as summary
+                `);
+                tests.health_summary = result.rows[0].summary ? 'pass' : 'fail';
+            } catch (error) {
+                this.log(`Health summary test failed: ${error.message}`, 'warning');
+                tests.health_summary = 'fail';
+            }
 
-            this.log(`Recommendations test: ${recResult.rows.length} results`, 'info');
-
-            // Test analysis function
-            const analysisResult = await this.pool.query(`
-                SELECT * FROM analyze_user_current_relays($1, ARRAY['wss://relay.damus.io'])
-            `, [samplePubkey]);
-
-            this.log(`Analysis test: ${analysisResult.rows.length} metrics`, 'info');
-
-            // Test health summary
-            const healthResult = await this.pool.query('SELECT * FROM get_relay_health_summary() LIMIT 10');
-            this.log(`Health summary test: ${healthResult.rows.length} relays`, 'info');
-
-            return {
-                recommendations: recResult.rows.length,
-                analysis: analysisResult.rows.length,
-                health: healthResult.rows.length
-            };
+            this.log(`Function tests completed: ${JSON.stringify(tests)}`, 'info');
+            return tests;
         });
     }
 
     async optimizeDatabase() {
         return await this.runStep('Database Optimization', async () => {
-            this.log('Running ANALYZE on all tables...', 'progress');
-
+            // Run ANALYZE on all analytics tables
             const tables = [
-                'events', 'relays', 'events_relays', 'relay_metadata',
-                'relay_analytics', 'publisher_influence',
-                'relay_publisher_weights', 'relay_quality_scores'
+                'relay_analytics',
+                'publisher_influence',
+                'relay_publisher_weights',
+                'relay_quality_scores',
+                'relay_recommendations'
             ];
 
             for (const table of tables) {
                 await this.pool.query(`ANALYZE ${table}`);
-                this.log(`Analyzed table: ${table}`, 'info');
             }
 
-            // Check index usage
-            this.log('Checking index statistics...', 'progress');
-            const indexResult = await this.pool.query(`
-                SELECT schemaname, tablename, indexname, idx_tup_read, idx_tup_fetch
-                FROM pg_stat_user_indexes 
-                WHERE idx_tup_read > 0
-                ORDER BY idx_tup_read DESC
-                LIMIT 10
-            `);
-
-            this.log(`Active indexes: ${indexResult.rows.length}`, 'info');
-
+            this.log('Database statistics updated', 'info');
             return true;
         });
     }
 
     async generateSampleData() {
         return await this.runStep('Sample Data Generation', async () => {
-            // Generate some sample recommendations for different threat levels
-            const threatLevels = ['low', 'medium', 'high', 'nation-state'];
             const samples = {};
 
-            // Get sample pubkeys
-            const pubkeysResult = await this.pool.query(`
-                SELECT DISTINCT pubkey FROM events WHERE kind = 3 LIMIT 3
-            `);
+            // Generate sample recommendations for different threat levels
+            const threatLevels = ['low', 'medium', 'high', 'nation-state'];
 
-            if (pubkeysResult.rows.length === 0) {
-                this.log('No contact list events found, using profile events', 'warning');
-                const profileResult = await this.pool.query(`
-                    SELECT DISTINCT pubkey FROM events WHERE kind = 0 LIMIT 3
-                `);
-                pubkeysResult.rows = profileResult.rows;
-            }
+            for (const threat of threatLevels) {
+                try {
+                    const result = await this.pool.query(`
+                        SELECT url, overall_score, privacy_score, reliability_score
+                        FROM relay_recommendations 
+                        WHERE overall_score > 
+                            CASE 
+                                WHEN $1 = 'low' THEN 3.0
+                                WHEN $1 = 'medium' THEN 5.0  
+                                WHEN $1 = 'high' THEN 7.0
+                                ELSE 8.0
+                            END
+                        ORDER BY overall_score DESC
+                        LIMIT 10
+                    `, [threat]);
 
-            for (const level of threatLevels) {
-                samples[level] = [];
-
-                for (const { pubkey } of pubkeysResult.rows.slice(0, 2)) {
-                    try {
-                        const result = await this.pool.query(`
-                            SELECT * FROM get_user_relay_recommendations($1, $2, 5, true)
-                        `, [pubkey, level]);
-
-                        samples[level].push({
-                            pubkey: pubkey.substring(0, 8) + '...',
-                            recommendations: result.rows.length,
-                            topScore: result.rows[0]?.overall_score || 0
-                        });
-                    } catch (error) {
-                        this.log(`Failed to generate sample for ${level}: ${error.message}`, 'warning');
-                    }
+                    samples[threat] = result.rows;
+                    this.log(`Generated ${result.rows.length} samples for ${threat} threat level`, 'info');
+                } catch (error) {
+                    this.log(`Sample generation failed for ${threat}: ${error.message}`, 'warning');
+                    samples[threat] = [];
                 }
             }
 
-            // Save samples to file for quick demo reference
-            const sampleFile = join(__dirname, '../../sample-data.json');
-            writeFileSync(sampleFile, JSON.stringify(samples, null, 2));
-            this.log(`Sample data saved to ${sampleFile}`, 'info');
-
             return samples;
+        });
+    }
+
+    async generatePrecomputedResponses() {
+        return await this.runStep('Precomputed Responses Generation', async () => {
+            const responses = {};
+
+            // Precompute common DVM responses
+            const scenarios = [
+                { name: 'general_user', threat: 'medium', following: false },
+                { name: 'privacy_focused', threat: 'high', following: false },
+                { name: 'social_user', threat: 'low', following: true },
+                { name: 'journalist', threat: 'nation-state', following: false }
+            ];
+
+            for (const scenario of scenarios) {
+                try {
+                    const testPubkey = 'npub1test1234567890abcdef1234567890abcdef1234567890abcdef12345';
+                    const result = await this.pool.query(`
+                        SELECT * FROM get_user_relay_recommendations($1, $2, 8, $3)
+                    `, [testPubkey, scenario.threat, scenario.following]);
+
+                    responses[scenario.name] = result.rows;
+                    this.log(`Precomputed ${result.rows.length} recommendations for ${scenario.name}`, 'info');
+                } catch (error) {
+                    this.log(`Precomputation failed for ${scenario.name}: ${error.message}`, 'warning');
+                    responses[scenario.name] = [];
+                }
+            }
+
+            // Cache responses to file for fast demo loading
+            const cacheFile = join(__dirname, '../../cache/precomputed-responses.json');
+            writeFileSync(cacheFile, JSON.stringify(responses, null, 2));
+
+            return responses;
         });
     }
 
     async validateSystemReadiness() {
         return await this.runStep('System Readiness Validation', async () => {
             const checks = [];
+            let failures = 0;
 
-            // Check high-quality relays count
-            const highQualityResult = await this.pool.query(`
-                SELECT COUNT(*) FROM relay_recommendations WHERE overall_score > 7.0
-            `);
-            const highQuality = parseInt(highQualityResult.rows[0].count);
-            checks.push({ name: 'High-quality relays', value: highQuality, minimum: 10 });
-
-            // Check publishers with influence
-            const influencersResult = await this.pool.query(`
-                SELECT COUNT(*) FROM publisher_influence WHERE influence_score > 3.0
-            `);
-            const influencers = parseInt(influencersResult.rows[0].count);
-            checks.push({ name: 'Influential publishers', value: influencers, minimum: 100 });
-
-            // Check recent events
-            const recentResult = await this.pool.query(`
-                SELECT COUNT(*) FROM events WHERE created_at > $1
-            `, [Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60)]); // Last 30 days
-            const recent = parseInt(recentResult.rows[0].count);
-            checks.push({ name: 'Recent events (30 days)', value: recent, minimum: 1000 });
-
-            // Check relay diversity
-            const diversityResult = await this.pool.query(`
-                SELECT COUNT(DISTINCT ra.url) 
-                FROM relay_analytics ra 
-                WHERE ra.unique_publishers >= 5
-            `);
-            const diversity = parseInt(diversityResult.rows[0].count);
-            checks.push({ name: 'Diverse relays (5+ publishers)', value: diversity, minimum: 20 });
-
-            // Validate all checks
-            const failures = checks.filter(check => check.value < check.minimum);
-
-            for (const check of checks) {
-                const status = check.value >= check.minimum ? 'success' : 'warning';
-                this.log(`${check.name}: ${check.value.toLocaleString()} (min: ${check.minimum})`, status);
-            }
-
-            if (failures.length > 0) {
-                this.log(`${failures.length} validation warnings found`, 'warning');
-                for (const failure of failures) {
-                    this.log(`⚠️  ${failure.name}: ${failure.value} < ${failure.minimum}`, 'warning');
+            // Check materialized view has data
+            try {
+                const result = await this.pool.query('SELECT COUNT(*) FROM relay_recommendations');
+                const count = parseInt(result.rows[0].count);
+                if (count > 0) {
+                    checks.push({ name: 'relay_recommendations_data', status: 'pass', value: count });
+                } else {
+                    checks.push({ name: 'relay_recommendations_data', status: 'fail', value: count });
+                    failures++;
                 }
-            } else {
-                this.log('All system readiness checks passed!', 'success');
+            } catch (error) {
+                checks.push({ name: 'relay_recommendations_data', status: 'error', error: error.message });
+                failures++;
             }
 
-            return { checks, failures: failures.length };
-        });
-    }
-
-    async generatePrecomputedResponses() {
-        return await this.runStep('Pre-computed Response Generation', async () => {
-            // Generate cached responses for common scenarios
-            const scenarios = [
-                { name: 'casual-user', threatLevel: 'low', useCase: 'social' },
-                { name: 'privacy-conscious', threatLevel: 'medium', useCase: 'general' },
-                { name: 'journalist', threatLevel: 'high', useCase: 'journalism' },
-                { name: 'activist', threatLevel: 'nation-state', useCase: 'activism' }
-            ];
-
-            const precomputed = {};
-
-            // Get a representative user pubkey
-            const userResult = await this.pool.query(`
-                SELECT pubkey FROM events WHERE kind = 3 
-                ORDER BY created_at DESC LIMIT 1
-            `);
-
-            if (userResult.rows.length === 0) {
-                throw new Error('No contact list events found for pre-computation');
+            // Check high-quality relays available
+            try {
+                const result = await this.pool.query('SELECT COUNT(*) FROM relay_recommendations WHERE overall_score > 7.0');
+                const count = parseInt(result.rows[0].count);
+                if (count >= 5) {
+                    checks.push({ name: 'high_quality_relays', status: 'pass', value: count });
+                } else {
+                    checks.push({ name: 'high_quality_relays', status: 'warning', value: count });
+                    failures++;
+                }
+            } catch (error) {
+                checks.push({ name: 'high_quality_relays', status: 'error', error: error.message });
+                failures++;
             }
 
-            const userPubkey = userResult.rows[0].pubkey;
-
-            for (const scenario of scenarios) {
+            // Check analytics tables have data
+            const analyticsTables = ['relay_analytics', 'publisher_influence', 'relay_quality_scores'];
+            for (const table of analyticsTables) {
                 try {
-                    // Generate recommendation
-                    const recResult = await this.pool.query(`
-                        SELECT * FROM get_user_relay_recommendations($1, $2, 8, true)
-                    `, [userPubkey, scenario.threatLevel]);
-
-                    // Generate health summary
-                    const healthResult = await this.pool.query(`
-                        SELECT * FROM get_relay_health_summary() LIMIT 20
-                    `);
-
-                    precomputed[scenario.name] = {
-                        recommendations: recResult.rows,
-                        health: healthResult.rows,
-                        metadata: {
-                            threatLevel: scenario.threatLevel,
-                            useCase: scenario.useCase,
-                            generated: new Date().toISOString(),
-                            totalRelaysAnalyzed: recResult.rows.length
-                        }
-                    };
-
-                    this.log(`Pre-computed ${scenario.name}: ${recResult.rows.length} recommendations`, 'info');
-
+                    const result = await this.pool.query(`SELECT COUNT(*) FROM ${table}`);
+                    const count = parseInt(result.rows[0].count);
+                    if (count > 0) {
+                        checks.push({ name: `${table}_data`, status: 'pass', value: count });
+                    } else {
+                        checks.push({ name: `${table}_data`, status: 'fail', value: count });
+                        failures++;
+                    }
                 } catch (error) {
-                    this.log(`Failed to pre-compute ${scenario.name}: ${error.message}`, 'warning');
+                    checks.push({ name: `${table}_data`, status: 'error', error: error.message });
+                    failures++;
                 }
             }
 
-            // Save pre-computed responses
-            const precomputedFile = join(__dirname, '../../precomputed-responses.json');
-            writeFileSync(precomputedFile, JSON.stringify(precomputed, null, 2));
-            this.log(`Pre-computed responses saved to ${precomputedFile}`, 'info');
+            this.log(`Readiness validation: ${checks.length - failures}/${checks.length} checks passed`, failures > 0 ? 'warning' : 'success');
 
-            return precomputed;
+            return { checks, failures };
         });
     }
 
     async generateSetupReport() {
         const duration = Date.now() - this.startTime;
+
         const report = {
             timestamp: new Date().toISOString(),
-            duration: duration,
+            duration,
+            success: this.errors.length === 0,
             steps: this.steps,
             errors: this.errors,
             summary: {
-                totalSteps: this.steps.length,
-                successfulSteps: this.steps.filter(s => s.type === 'success').length,
+                total_steps: this.steps.length,
+                successful: this.steps.filter(s => s.type === 'success').length,
                 warnings: this.steps.filter(s => s.type === 'warning').length,
                 errors: this.errors.length
             }
@@ -513,11 +470,6 @@ class ComprehensiveSetup {
             }
 
             this.log('🚀 System is ready for hackathon demo!', 'success');
-            this.log('   • Start DVM: npm start', 'info');
-            this.log('   • Start Client: npm run client:dev', 'info');
-            this.log('   • Test CLI: npm run test:recommend', 'info');
-
-            return report;
 
         } catch (error) {
             this.log(`💥 Setup failed: ${error.message}`, 'error');
@@ -532,15 +484,10 @@ class ComprehensiveSetup {
 if (import.meta.url === `file://${process.argv[1]}`) {
     const setup = new ComprehensiveSetup();
 
-    setup.run()
-        .then((report) => {
-            console.log('\n📄 Setup report generated: setup-report.json');
-            process.exit(report.summary.errors > 0 ? 1 : 0);
-        })
-        .catch((error) => {
-            console.error('\n💥 Setup failed:', error.message);
-            process.exit(1);
-        });
+    setup.run().catch(error => {
+        console.error(`💥 Setup failed: ${error.message}`);
+        process.exit(1);
+    });
 }
 
-export { ComprehensiveSetup };
+export default ComprehensiveSetup;

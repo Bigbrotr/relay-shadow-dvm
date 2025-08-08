@@ -1,0 +1,320 @@
+{
+  "timestamp": "2025-08-08T08:42:59.306Z",
+  "duration": 4150,
+  "success": true,
+  "steps": [
+    {
+      "timestamp": "2025-08-08T08:42:55.156Z",
+      "type": "info",
+      "message": "🚀 Starting Comprehensive Setup for Relay Shadow DVM",
+      "duration": 2
+    },
+    {
+      "timestamp": "2025-08-08T08:42:55.158Z",
+      "type": "info",
+      "message": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "duration": 2
+    },
+    {
+      "timestamp": "2025-08-08T08:42:55.158Z",
+      "type": "progress",
+      "message": "Starting: Database Connection Check",
+      "duration": 2
+    },
+    {
+      "timestamp": "2025-08-08T08:42:55.910Z",
+      "type": "info",
+      "message": "Database connected: PostgreSQL 17.5 (Debian 17.5-1.pgdg120+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit",
+      "duration": 754
+    },
+    {
+      "timestamp": "2025-08-08T08:42:55.910Z",
+      "type": "success",
+      "message": "Completed: Database Connection Check (752ms)",
+      "duration": 754
+    },
+    {
+      "timestamp": "2025-08-08T08:42:55.911Z",
+      "type": "progress",
+      "message": "Starting: Data Availability Check",
+      "duration": 755
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.012Z",
+      "type": "info",
+      "message": "Events: 86.938 records",
+      "duration": 857
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.084Z",
+      "type": "info",
+      "message": "Relays: 8865 records",
+      "duration": 928
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.165Z",
+      "type": "info",
+      "message": "Events-Relays Relations: 456.040 records",
+      "duration": 1010
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.235Z",
+      "type": "info",
+      "message": "Relay Metadata: 438 records",
+      "duration": 1080
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.236Z",
+      "type": "success",
+      "message": "Completed: Data Availability Check (325ms)",
+      "duration": 1080
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.236Z",
+      "type": "progress",
+      "message": "Starting: Analytics Tables Creation",
+      "duration": 1080
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.237Z",
+      "type": "progress",
+      "message": "Executing preprocessing SQL...",
+      "duration": 1081
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.563Z",
+      "type": "info",
+      "message": "relay_analytics: 8865 records",
+      "duration": 1407
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.704Z",
+      "type": "info",
+      "message": "publisher_influence: 208 records",
+      "duration": 1548
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.844Z",
+      "type": "info",
+      "message": "relay_publisher_weights: 18.720 records",
+      "duration": 1688
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.984Z",
+      "type": "info",
+      "message": "relay_quality_scores: 8865 records",
+      "duration": 1828
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.984Z",
+      "type": "success",
+      "message": "Completed: Analytics Tables Creation (748ms)",
+      "duration": 1828
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.984Z",
+      "type": "progress",
+      "message": "Starting: DVM Query Functions Installation",
+      "duration": 1828
+    },
+    {
+      "timestamp": "2025-08-08T08:42:56.985Z",
+      "type": "progress",
+      "message": "Installing DVM query functions...",
+      "duration": 1829
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.131Z",
+      "type": "info",
+      "message": "Function get_user_relay_recommendations installed",
+      "duration": 1975
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.201Z",
+      "type": "info",
+      "message": "Function analyze_user_current_relays installed",
+      "duration": 2045
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.271Z",
+      "type": "info",
+      "message": "Function get_discovery_relays installed",
+      "duration": 2115
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.346Z",
+      "type": "info",
+      "message": "Function get_relay_health_summary installed",
+      "duration": 2190
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.416Z",
+      "type": "info",
+      "message": "Function refresh_relay_analytics installed",
+      "duration": 2260
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.416Z",
+      "type": "success",
+      "message": "Completed: DVM Query Functions Installation (432ms)",
+      "duration": 2260
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.416Z",
+      "type": "progress",
+      "message": "Starting: Materialized Views Creation",
+      "duration": 2260
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.416Z",
+      "type": "progress",
+      "message": "Creating relay_recommendations materialized view...",
+      "duration": 2260
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.691Z",
+      "type": "info",
+      "message": "relay_recommendations: 8860 records",
+      "duration": 2536
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.692Z",
+      "type": "success",
+      "message": "Completed: Materialized Views Creation (276ms)",
+      "duration": 2536
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.692Z",
+      "type": "progress",
+      "message": "Starting: DVM Functions Testing",
+      "duration": 2536
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.932Z",
+      "type": "info",
+      "message": "Function tests completed: {\"user_recommendations\":5,\"discovery_relays\":0,\"health_summary\":\"pass\"}",
+      "duration": 2776
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.932Z",
+      "type": "success",
+      "message": "Completed: DVM Functions Testing (240ms)",
+      "duration": 2776
+    },
+    {
+      "timestamp": "2025-08-08T08:42:57.933Z",
+      "type": "progress",
+      "message": "Starting: Database Optimization",
+      "duration": 2777
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.372Z",
+      "type": "info",
+      "message": "Database statistics updated",
+      "duration": 3216
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.372Z",
+      "type": "success",
+      "message": "Completed: Database Optimization (439ms)",
+      "duration": 3216
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.373Z",
+      "type": "progress",
+      "message": "Starting: Sample Data Generation",
+      "duration": 3217
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.445Z",
+      "type": "info",
+      "message": "Generated 10 samples for low threat level",
+      "duration": 3289
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.515Z",
+      "type": "info",
+      "message": "Generated 10 samples for medium threat level",
+      "duration": 3359
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.586Z",
+      "type": "info",
+      "message": "Generated 10 samples for high threat level",
+      "duration": 3430
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.658Z",
+      "type": "info",
+      "message": "Generated 10 samples for nation-state threat level",
+      "duration": 3502
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.658Z",
+      "type": "success",
+      "message": "Completed: Sample Data Generation (285ms)",
+      "duration": 3502
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.658Z",
+      "type": "progress",
+      "message": "Starting: Precomputed Responses Generation",
+      "duration": 3502
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.730Z",
+      "type": "info",
+      "message": "Precomputed 8 recommendations for general_user",
+      "duration": 3574
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.802Z",
+      "type": "info",
+      "message": "Precomputed 8 recommendations for privacy_focused",
+      "duration": 3647
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.875Z",
+      "type": "info",
+      "message": "Precomputed 8 recommendations for social_user",
+      "duration": 3719
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.948Z",
+      "type": "info",
+      "message": "Precomputed 8 recommendations for journalist",
+      "duration": 3793
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.950Z",
+      "type": "success",
+      "message": "Completed: Precomputed Responses Generation (292ms)",
+      "duration": 3794
+    },
+    {
+      "timestamp": "2025-08-08T08:42:58.950Z",
+      "type": "progress",
+      "message": "Starting: System Readiness Validation",
+      "duration": 3794
+    },
+    {
+      "timestamp": "2025-08-08T08:42:59.305Z",
+      "type": "success",
+      "message": "Readiness validation: 5/5 checks passed",
+      "duration": 4149
+    },
+    {
+      "timestamp": "2025-08-08T08:42:59.306Z",
+      "type": "success",
+      "message": "Completed: System Readiness Validation (356ms)",
+      "duration": 4150
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "total_steps": 51,
+    "successful": 11,
+    "warnings": 0,
+    "errors": 0
+  }
+}
