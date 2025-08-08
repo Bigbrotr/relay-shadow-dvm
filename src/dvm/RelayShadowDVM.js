@@ -462,20 +462,29 @@ class RelayShadowDVM {
     async analyzeUserCoverage(userPubkey, currentRelays) {
         try {
             // Get user's following network coverage
+            // Fixed: Use a subquery to first get the latest follows, then select distinct
             const coverageQuery = `
-                WITH user_following AS (
-                    SELECT DISTINCT (tag->>1)::TEXT as followed_pubkey
-                    FROM events e, jsonb_array_elements(e.tags) as tag
-                    WHERE e.pubkey = $1 AND e.kind = 3 AND tag->>0 = 'p'
-                    AND LENGTH(tag->>1) = 64
-                    ORDER BY e.created_at DESC LIMIT 500
-                )
-                SELECT 
-                    COUNT(DISTINCT uf.followed_pubkey) as total_following,
-                    COUNT(DISTINCT CASE WHEN rpw.relay_url = ANY($2) THEN uf.followed_pubkey END) as covered_following
-                FROM user_following uf
-                LEFT JOIN relay_publisher_weights rpw ON uf.followed_pubkey = rpw.pubkey
-            `;
+            WITH latest_follows AS (
+                SELECT DISTINCT ON ((tag->>1)::TEXT) 
+                    (tag->>1)::TEXT as followed_pubkey,
+                    e.created_at
+                FROM events e, jsonb_array_elements(e.tags) as tag
+                WHERE e.pubkey = $1 AND e.kind = 3 AND tag->>0 = 'p'
+                AND LENGTH(tag->>1) = 64
+                ORDER BY (tag->>1)::TEXT, e.created_at DESC
+            ),
+            user_following AS (
+                SELECT followed_pubkey
+                FROM latest_follows
+                ORDER BY created_at DESC
+                LIMIT 500
+            )
+            SELECT 
+                COUNT(DISTINCT uf.followed_pubkey) as total_following,
+                COUNT(DISTINCT CASE WHEN rpw.relay_url = ANY($2) THEN uf.followed_pubkey END) as covered_following
+            FROM user_following uf
+            LEFT JOIN relay_publisher_weights rpw ON uf.followed_pubkey = rpw.pubkey
+        `;
 
             const result = await this.db.query(coverageQuery, [userPubkey, currentRelays]);
             const { total_following = 0, covered_following = 0 } = result.rows[0] || {};
@@ -487,16 +496,17 @@ class RelayShadowDVM {
                 coverage: `${coveragePercent}% (${covered_following}/${total_following})`,
                 suggestions: [
                     coveragePercent < 50 ? "Add more relays to better connect with your network" :
-                        coveragePercent < 80 ? "Good coverage, consider adding 1-2 more relays" :
+                        coveragePercent < 80 ? "Good coverage, but some followed users might be missed" :
                             "Excellent coverage of your followed users"
                 ]
             };
 
         } catch (error) {
             console.error('Error analyzing coverage:', error);
+            // Return fallback data instead of throwing
             return {
-                coverage: "Unable to calculate",
-                suggestions: ["Analysis temporarily unavailable"]
+                coverage: "Unable to analyze (0/0)",
+                suggestions: ["Coverage analysis temporarily unavailable"]
             };
         }
     }

@@ -4,13 +4,17 @@
 // src/scripts/test-client.js
 
 import { generatePrivateKey, getPublicKey, finishEvent, validateEvent } from 'nostr-tools'
+import { decode } from 'nostr-tools/nip19'
 import process from 'process'
 
 class DVMTestClient {
     constructor(dvmPublicKey) {
         this.privateKey = generatePrivateKey()
         this.publicKey = getPublicKey(this.privateKey)
-        this.dvmPublicKey = dvmPublicKey
+
+        // Validate and clean the DVM public key
+        this.dvmPublicKey = this.validateAndCleanPubkey(dvmPublicKey)
+
         this.connections = new Map()
         this.responses = []
         this.pendingEvents = new Map()
@@ -26,6 +30,34 @@ class DVMTestClient {
         console.log(`🔧 Test Client initialized`)
         console.log(`📡 Client pubkey: ${this.publicKey}`)
         console.log(`🎯 Target DVM: ${this.dvmPublicKey}`)
+    }
+
+    validateAndCleanPubkey(pubkey) {
+        if (!pubkey || typeof pubkey !== 'string') {
+            throw new Error('DVM public key is required and must be a string')
+        }
+
+        // Remove any whitespace
+        pubkey = pubkey.trim()
+
+        // Handle npub format (bech32) - now synchronous
+        if (pubkey.startsWith('npub1')) {
+            try {
+                const decoded = decode(pubkey)
+                if (decoded.type === 'npub') {
+                    pubkey = decoded.data
+                }
+            } catch (error) {
+                throw new Error(`Invalid npub format: ${error.message}`)
+            }
+        }
+
+        // Validate hex format
+        if (!/^[a-f0-9]{64}$/i.test(pubkey)) {
+            throw new Error(`Invalid public key format. Expected 64-character hex string, got: ${pubkey} (${pubkey.length} chars)`)
+        }
+
+        return pubkey.toLowerCase()
     }
 
     async connect() {
@@ -201,13 +233,28 @@ class DVMTestClient {
             // Display response based on type
             if (responseData.type === 'relay_recommendations') {
                 console.log(`🎯 Type: ${responseData.type}`)
-                console.log(`📊 Found ${responseData.recommendations?.length || 0} recommendations:`)
 
-                responseData.recommendations?.forEach((rec, i) => {
+                // Handle both old and new response formats
+                const recommendations = responseData.recommendations?.primary ||
+                    responseData.recommendations ||
+                    []
+
+                console.log(`📊 Found ${recommendations.length} recommendations:`)
+
+                recommendations.forEach((rec, i) => {
                     console.log(`  ${i + 1}. ${rec.url}`)
                     console.log(`     Score: ${rec.scores?.overall || 'N/A'} | Privacy: ${rec.scores?.privacy || 'N/A'}`)
                     console.log(`     ${rec.reasoning || 'No reasoning provided'}`)
                 })
+
+                // Show backup recommendations if available
+                if (responseData.recommendations?.backup?.length > 0) {
+                    console.log(`\n📋 Backup recommendations:`)
+                    responseData.recommendations.backup.forEach((rec, i) => {
+                        console.log(`  ${i + 1}. ${rec.url} (Score: ${rec.scores?.overall || 'N/A'})`)
+                    })
+                }
+
             } else if (responseData.type === 'relay_analysis') {
                 console.log(`🔍 Type: ${responseData.type}`)
                 console.log(`📊 Analysis results:`)
@@ -227,12 +274,14 @@ class DVMTestClient {
                 }
             } else if (responseData.type === 'discovery_recommendations') {
                 console.log(`🔮 Type: ${responseData.type}`)
-                console.log(`📊 Discovery recommendations: ${responseData.recommendations?.length || 0}`)
 
-                responseData.recommendations?.forEach((rec, i) => {
+                const discoveries = responseData.discoveries || responseData.recommendations || []
+                console.log(`📊 Discovery recommendations: ${discoveries.length}`)
+
+                discoveries.forEach((rec, i) => {
                     console.log(`  ${i + 1}. ${rec.url}`)
-                    console.log(`     Discovery Score: ${rec.scores?.discovery || 'N/A'}`)
-                    console.log(`     Publishers: ${rec.unique_quality_publishers || 'N/A'}`)
+                    console.log(`     Discovery Score: ${rec.discoveryScore || rec.scores?.discovery || 'N/A'}`)
+                    console.log(`     Publishers: ${rec.uniquePublishers || rec.unique_quality_publishers || 'N/A'}`)
                     console.log(`     ${rec.reasoning || 'No reasoning provided'}`)
                 })
             } else if (responseData.type === 'relay_health_summary') {
@@ -245,14 +294,18 @@ class DVMTestClient {
                     console.log(`  With issues: ${responseData.summary.issues || 'N/A'}`)
                 }
 
-                if (responseData.relays) {
-                    console.log(`  Relay details: ${responseData.relays.length}`)
-                    responseData.relays.slice(0, 5).forEach((relay, i) => {
-                        console.log(`    ${i + 1}. ${relay.relay_url} - ${relay.health_status}`)
+                // Handle both old and new formats
+                const relays = responseData.relays || responseData.categories?.healthy || []
+                if (relays.length > 0) {
+                    console.log(`  Relay details: ${relays.length}`)
+                    relays.slice(0, 5).forEach((relay, i) => {
+                        const url = relay.relay_url || relay.url
+                        const status = relay.health_status || relay.status
+                        console.log(`    ${i + 1}. ${url} - ${status}`)
                     })
 
-                    if (responseData.relays.length > 5) {
-                        console.log(`    ... and ${responseData.relays.length - 5} more`)
+                    if (relays.length > 5) {
+                        console.log(`    ... and ${relays.length - 5} more`)
                     }
                 }
             } else if (responseData.type === 'error') {
@@ -317,12 +370,18 @@ class DVMTestClient {
             kind: 5600, // DVM request kind
             created_at: Math.floor(Date.now() / 1000),
             tags: [
-                ['p', this.dvmPublicKey], // DVM public key
+                ['p', this.dvmPublicKey], // DVM public key - make sure it's 64 chars hex
                 ['param', 'request_type', requestType],
                 ['param', 'threat_level', threatLevel],
                 ['param', 'max_results', String(maxResults)]
             ],
             content: context,
+        }
+
+        // Validate the p tag before sending
+        const pTag = requestEvent.tags.find(tag => tag[0] === 'p')
+        if (!pTag || !pTag[1] || pTag[1].length !== 64) {
+            throw new Error(`Invalid p tag pubkey: ${pTag ? pTag[1] : 'missing'} (should be 64 hex chars)`)
         }
 
         // Add optional parameters
@@ -345,6 +404,13 @@ class DVMTestClient {
             throw new Error('Invalid event signature')
         }
 
+        console.log(`📤 Sending ${requestType} request...`)
+        console.log(`   Threat level: ${threatLevel}`)
+        console.log(`   Max results: ${maxResults}`)
+        if (currentRelays.length > 0) {
+            console.log(`   Current relays: ${currentRelays.join(', ')}`)
+        }
+
         // Send to all connected relays with improved error handling
         const publishPromises = Array.from(this.connections.entries()).map(([url, ws]) => {
             return this.publishEventToRelay(ws, signedEvent, url)
@@ -354,24 +420,20 @@ class DVMTestClient {
         const successful = results.filter(r => r.status === 'fulfilled').length
         const failed = results.filter(r => r.status === 'rejected')
 
-        console.log(`📤 Request sent to ${successful}/${this.connections.size} relays`)
-        console.log(`🔍 Request ID: ${signedEvent.id}`)
-        console.log(`⏳ Waiting for DVM response...`)
-
-        // Log failures
         if (failed.length > 0) {
-            console.warn(`⚠️ Failed to send to ${failed.length} relays:`)
-            failed.forEach((result, index) => {
-                const relayUrl = Array.from(this.connections.keys())[index]
-                console.warn(`  - ${relayUrl}: ${result.reason?.message}`)
+            console.log(`⚠ Some relays rejected the event:`)
+            failed.forEach((result, i) => {
+                console.log(`   ${result.reason}`)
             })
         }
 
+        console.log(`📤 Request sent to ${successful}/${results.length} relays`)
+
         if (successful === 0) {
-            throw new Error('Failed to send request to any relay')
+            throw new Error('Failed to send request to any relays')
         }
 
-        return signedEvent
+        return { successful, total: results.length, signedEvent }
     }
 
     async publishEventToRelay(ws, event, relayUrl) {
