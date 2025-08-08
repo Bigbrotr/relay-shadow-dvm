@@ -115,7 +115,7 @@ npm run setup
 
 ```bash
 # Start only the DVM
-npm run dvm
+npm start
 
 # Start only the client
 npm run web
@@ -259,48 +259,6 @@ BigBrotr Database → Analytics Preprocessing → DVM Intelligence → Nostr Rec
 - **`relay_recommendations`**: Pre-computed recommendations by threat level
 - **`social_recommendations`**: Following-based personalized suggestions
 - **`privacy_rankings`**: Ranked relays by privacy characteristics
-
----
-
-## 🧪 Testing & Development
-
-### Run Tests
-```bash
-# Full test suite
-npm test
-
-# Test specific components
-npm run test:dvm
-npm run test:analytics
-npm run test:privacy
-
-# Integration tests with real data
-npm run test:integration
-```
-
-### Manual Testing
-```bash
-# Test DVM with specific scenarios
-node src/scripts/test-client.js --threat-level high --user npub1...
-
-# Test specific relay analysis
-node src/scripts/analyze-relay.js --url wss://relay.damus.io
-
-# Generate test scenarios
-npm run generate:scenarios
-```
-
-### Development Mode
-```bash
-# Start with hot reload
-npm run dev
-
-# Run setup in development mode
-npm run setup:dev
-
-# Reset database for fresh testing
-npm run reset:dev
-```
 
 ---
 

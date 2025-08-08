@@ -64,19 +64,45 @@ const App = () => {
       let client
 
       if (signFunction && albyPublicKey) {
-        // Alby connection
-        client = new NostrClient(null, dvmPubkey, signFunction, albyPublicKey)
+        // Alby connection - FIXED: Constructor arguments were in wrong order
+        client = new NostrClient(dvmPubkey, {
+          useAlby: true,
+          signFunction: signFunction,
+          privateKey: null, // Alby handles signing
+          relays: ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol', 'wss://relay.nostr.band']
+        })
+
+        // For Alby, we need to set the public key manually since we're not generating a private key
+        client.publicKey = albyPublicKey
+
         setUserPublicKey(albyPublicKey)
         toast.success('Connecting via Alby wallet...', { duration: 2000 })
       } else {
-        // Manual connection
+        // Manual connection - FIXED: Constructor signature
         if (!clientPrivateKey || !dvmPubkey) {
           throw new Error('Private key and DVM public key are required')
         }
-        client = new NostrClient(clientPrivateKey, dvmPubkey)
+
+        client = new NostrClient(dvmPubkey, {
+          useAlby: false,
+          signFunction: null,
+          privateKey: clientPrivateKey,
+          relays: ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol', 'wss://relay.nostr.band']
+        })
+
         setUserPublicKey(client.publicKey)
         setPrivateKey(clientPrivateKey)
       }
+
+      // CRITICAL: Validate that dvmPublicKey was set correctly
+      if (!client.dvmPublicKey) {
+        throw new Error('DVM public key was not set correctly')
+      }
+
+      console.log('🔧 Client Debug Info:')
+      console.log('  - DVM Public Key:', client.dvmPublicKey)
+      console.log('  - Client Public Key:', client.publicKey)
+      console.log('  - Use Alby:', client.useAlby)
 
       // Set up event handlers before connecting
       client.onResponse = (response) => {

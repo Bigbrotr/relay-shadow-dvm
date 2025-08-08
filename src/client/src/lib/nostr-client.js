@@ -331,11 +331,11 @@ export class NostrClient {
 
         const { requestType, threatLevel, maxResults, useCase, context, currentRelays } = requestData
 
-        // Build request event - FIXED: Added missing pubkey property
+        // Build request event - ENSURE ALL REQUIRED PROPERTIES ARE PRESENT
         const requestEvent = {
             kind: 5600, // DVM request kind
             created_at: Math.floor(Date.now() / 1000),
-            pubkey: this.publicKey, // ← This was missing and causing the error!
+            pubkey: this.publicKey, // ← CRITICAL: This must be present
             tags: [
                 ['p', this.dvmPublicKey], // DVM public key
                 ['param', 'request_type', requestType],
@@ -357,22 +357,54 @@ export class NostrClient {
         // Add client info for better DVM responses
         requestEvent.tags.push(['client', 'relay-shadow-client', '1.0.0'])
 
-        // Validate event before signing
+        // Enhanced validation before signing
         console.log('🔍 Event validation before signing:')
+        console.log('Event object:', JSON.stringify(requestEvent, null, 2))
+
         const requiredProps = ['kind', 'created_at', 'pubkey', 'tags', 'content']
-        const missingProps = requiredProps.filter(prop =>
-            requestEvent[prop] === undefined || requestEvent[prop] === null
-        )
+        const missingProps = requiredProps.filter(prop => {
+            const value = requestEvent[prop]
+            return value === undefined || value === null || value === ''
+        })
 
         if (missingProps.length > 0) {
             console.error('❌ Missing required properties:', missingProps)
+            console.error('Current event object:', requestEvent)
             throw new Error(`Event missing required properties: ${missingProps.join(', ')}`)
         }
 
-        // Check pubkey format (should be 64 character hex)
+        // Validate pubkey format more thoroughly
+        if (!this.publicKey) {
+            console.error('❌ this.publicKey is not set')
+            throw new Error('Client public key is not initialized')
+        }
+
+        if (typeof requestEvent.pubkey !== 'string') {
+            console.error('❌ pubkey is not a string:', typeof requestEvent.pubkey, requestEvent.pubkey)
+            throw new Error('Event pubkey must be a string')
+        }
+
         if (!/^[a-f0-9]{64}$/i.test(requestEvent.pubkey)) {
             console.error('❌ Invalid pubkey format:', requestEvent.pubkey)
+            console.error('Pubkey length:', requestEvent.pubkey?.length)
             throw new Error('Event pubkey should be 64 character hex string')
+        }
+
+        // Validate other required properties
+        if (typeof requestEvent.kind !== 'number' || requestEvent.kind <= 0) {
+            throw new Error('Event kind must be a positive number')
+        }
+
+        if (typeof requestEvent.created_at !== 'number' || requestEvent.created_at <= 0) {
+            throw new Error('Event created_at must be a positive timestamp')
+        }
+
+        if (!Array.isArray(requestEvent.tags)) {
+            throw new Error('Event tags must be an array')
+        }
+
+        if (typeof requestEvent.content !== 'string') {
+            throw new Error('Event content must be a string')
         }
 
         console.log('✅ Event validation passed')
@@ -384,15 +416,42 @@ export class NostrClient {
                 console.log('🔐 Signing with Alby...')
                 signedEvent = await this.signFunction(requestEvent)
             } else {
+                console.log('🔐 Signing with private key...')
                 signedEvent = finishEvent(requestEvent, this.privateKey)
             }
 
-            // Validate before sending
+            // Validate the signed event
+            if (!signedEvent) {
+                throw new Error('Signing returned null/undefined event')
+            }
+
             if (!validateEvent(signedEvent)) {
+                console.error('❌ Signed event failed validation:', signedEvent)
                 throw new Error('Invalid event signature')
             }
+
+            console.log('✅ Event signed successfully')
+            console.log('Event ID:', signedEvent.id)
+
         } catch (error) {
-            console.error('Event signing failed:', error)
+            console.error('❌ Event signing failed:', error)
+            console.error('Original event:', requestEvent)
+            console.error('Client state:')
+            console.error('  - useAlby:', this.useAlby)
+            console.error('  - signFunction:', !!this.signFunction)
+            console.error('  - privateKey:', !!this.privateKey)
+            console.error('  - publicKey:', this.publicKey)
+
+            // Debug client state
+            console.log('🔧 Client Debug Info:')
+            console.log('  - Connected relays:', this.connections.size)
+            console.log('  - Public key:', this.publicKey)
+            console.log('  - Public key type:', typeof this.publicKey)
+            console.log('  - Public key length:', this.publicKey?.length)
+            console.log('  - Private key exists:', !!this.privateKey)
+            console.log('  - Use Alby:', this.useAlby)
+            console.log('  - Sign function exists:', !!this.signFunction)
+
             throw new Error(`Failed to sign event: ${error.message}`)
         }
 
@@ -412,7 +471,8 @@ export class NostrClient {
         if (failed.length > 0) {
             console.warn(`⚠️ Failed to send to ${failed.length} relays:`)
             failed.forEach((result, index) => {
-                const relayUrl = Array.from(this.connections.keys())[index]
+                const relayUrls = Array.from(this.connections.keys())
+                const relayUrl = relayUrls[results.findIndex(r => r === result)]
                 console.warn(`  - ${relayUrl}: ${result.reason?.message}`)
             })
         }
