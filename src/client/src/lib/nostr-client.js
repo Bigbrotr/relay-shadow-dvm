@@ -35,33 +35,42 @@ export class NostrClient {
         console.log(`🔧 NostrClient initialized`)
         console.log(`📡 Client pubkey: ${this.publicKey}`)
         console.log(`🎯 Target DVM: ${this.dvmPublicKey}`)
-        console.log(`🔐 Auth method: ${this.useAlby ? 'Alby Wallet' : 'Manual Key'}`)
+        console.log(`🔐 Auth method: ${this.useAlby ? 'Alby' : 'Private Key'}`)
     }
 
     isReady() {
-        return this.connections.size > 0
+        return this.connections.size > 0 &&
+            Array.from(this.connections.values()).some(ws => ws.readyState === WebSocket.OPEN)
+    }
+
+    getConnectionStatus() {
+        const total = this.connections.size
+        const connected = Array.from(this.connections.values())
+            .filter(ws => ws.readyState === WebSocket.OPEN).length
+        return { total, connected }
     }
 
     async connect() {
-        console.log(`🌐 Connecting to ${this.relays.length} relays...`)
+        console.log(`🔗 Connecting to ${this.relays.length} relays...`)
 
-        const connectionPromises = this.relays.map(relay => this.connectToRelay(relay))
+        const connectionPromises = this.relays.map(relay =>
+            this.connectToRelay(relay).catch(error => {
+                console.warn(`Failed to connect to ${relay}:`, error.message)
+                return null
+            })
+        )
+
         const results = await Promise.allSettled(connectionPromises)
-
-        const connected = results.filter(r => r.status === 'fulfilled').length
-        console.log(`✅ Connected to ${connected}/${this.relays.length} relays`)
+        const connected = results.filter(r => r.status === 'fulfilled' && r.value).length
 
         if (connected === 0) {
             throw new Error('Failed to connect to any relays')
         }
 
-        // Subscribe to DVM responses after connecting
-        await this.subscribeToResponses()
+        console.log(`✅ Connected to ${connected}/${this.relays.length} relays`)
 
-        // Notify connection change
-        if (this.onConnectionChange) {
-            this.onConnectionChange(this.getConnectionStatus())
-        }
+        // Subscribe to DVM responses
+        await this.subscribeToDVMResponses()
 
         return connected
     }
@@ -70,24 +79,28 @@ export class NostrClient {
         return new Promise((resolve, reject) => {
             try {
                 const ws = new WebSocket(relayUrl)
+
                 const timeout = setTimeout(() => {
-                    if (ws.readyState === WebSocket.CONNECTING) {
-                        ws.close()
-                        reject(new Error(`Connection timeout: ${relayUrl}`))
-                    }
-                }, 15000)
+                    ws.close()
+                    reject(new Error(`Connection timeout to ${relayUrl}`))
+                }, 10000)
 
                 ws.onopen = () => {
                     clearTimeout(timeout)
+                    console.log(`🟢 Connected to ${relayUrl}`)
                     this.connections.set(relayUrl, ws)
-                    console.log(`  ✓ Connected to ${relayUrl}`)
+
+                    if (this.onConnectionChange) {
+                        this.onConnectionChange(this.getConnectionStatus())
+                    }
+
                     resolve(ws)
                 }
 
                 ws.onerror = (error) => {
                     clearTimeout(timeout)
-                    console.log(`  ✗ Failed to connect to ${relayUrl}:`, error.message || 'Unknown error')
-                    reject(error)
+                    console.error(`🔴 Connection error to ${relayUrl}:`, error)
+                    reject(new Error(`Failed to connect to ${relayUrl}`))
                 }
 
                 ws.onmessage = (event) => {
@@ -95,10 +108,9 @@ export class NostrClient {
                 }
 
                 ws.onclose = (event) => {
+                    console.log(`🔌 Disconnected from ${relayUrl} (code: ${event.code})`)
                     this.connections.delete(relayUrl)
-                    console.log(`  ⚠ Disconnected from ${relayUrl} (code: ${event.code})`)
 
-                    // Notify connection change
                     if (this.onConnectionChange) {
                         this.onConnectionChange(this.getConnectionStatus())
                     }
@@ -232,73 +244,81 @@ export class NostrClient {
     }
 
     isDVMResponse(event) {
-        if (!event || event.kind !== 6600) return false
+        if (!event || event.kind !== 5601) return false
 
-        // Check if addressed to us
-        const isForUs = event.tags && event.tags.some(tag =>
-            Array.isArray(tag) && tag.length >= 2 && tag[0] === 'p' && tag[1] === this.publicKey
-        )
-
-        return isForUs
+        // Check if this is a response to our DVM
+        const targetTag = event.tags.find(tag => tag[0] === 'p' && tag[1] === this.publicKey)
+        return !!targetTag
     }
 
     handleDVMResponse(event) {
-        if (this.onResponse) {
-            try {
-                // Parse response content
-                let responseData
-                try {
-                    responseData = JSON.parse(event.content)
-                } catch (e) {
-                    // If content isn't JSON, treat as plain text
-                    responseData = {
-                        type: 'text_response',
-                        content: event.content
-                    }
-                }
+        try {
+            const response = {
+                id: event.id,
+                timestamp: event.created_at,
+                content: event.content,
+                tags: event.tags,
+                raw: event
+            }
 
-                this.onResponse({
-                    ...responseData,
-                    _meta: {
-                        eventId: event.id,
-                        timestamp: event.created_at,
-                        dvmPubkey: event.pubkey,
-                        receivedAt: Date.now(),
-                        tags: event.tags
-                    }
-                })
-            } catch (error) {
-                console.error('Failed to parse DVM response:', error)
-                if (this.onError) {
-                    this.onError(new Error('Invalid DVM response format'))
-                }
+            // Parse response type and data from tags
+            const responseTypeTag = event.tags.find(tag => tag[0] === 'response_type')
+            if (responseTypeTag) {
+                response.type = responseTypeTag[1]
+            }
+
+            // Extract structured data from content
+            try {
+                const parsedContent = JSON.parse(event.content)
+                response.data = parsedContent
+            } catch {
+                // Content is not JSON, keep as string
+                response.data = event.content
+            }
+
+            console.log('📨 Parsed DVM response:', response.type || 'unknown')
+
+            if (this.onResponse) {
+                this.onResponse(response)
+            }
+
+        } catch (error) {
+            console.error('Error handling DVM response:', error)
+            if (this.onError) {
+                this.onError(error)
             }
         }
     }
 
-    async subscribeToResponses() {
-        const subscription = {
-            kinds: [6600], // DVM response kind
-            '#p': [this.publicKey], // Responses addressed to us
-            since: Math.floor(Date.now() / 1000) - 300 // Last 5 minutes
+    async subscribeToDVMResponses() {
+        if (!this.isReady()) {
+            throw new Error('Client not ready')
         }
 
-        const subscriptionId = `dvm-responses-${Date.now()}`
-        this.subscriptions.set(subscriptionId, subscription)
+        const subscriptionId = 'dvm-responses-' + Math.random().toString(36).substring(7)
 
-        const subscribeMessage = ['REQ', subscriptionId, subscription]
+        const subscription = [
+            'REQ',
+            subscriptionId,
+            {
+                kinds: [5601], // DVM response kind
+                '#p': [this.publicKey], // Responses to our public key
+                since: Math.floor(Date.now() / 1000) - 60 // Last minute
+            }
+        ]
 
         let subscribed = 0
-        Array.from(this.connections.values()).forEach(ws => {
+        for (const [url, ws] of this.connections.entries()) {
             if (ws.readyState === WebSocket.OPEN) {
                 try {
-                    ws.send(JSON.stringify(subscribeMessage))
+                    ws.send(JSON.stringify(subscription))
                     subscribed++
+                    console.log(`📡 Subscribed to DVM responses on ${url}`)
                 } catch (error) {
-                    console.warn('Failed to send subscription:', error)
+                    console.error(`Failed to subscribe on ${url}:`, error)
                 }
             }
-        })
+        }
 
         console.log(`👂 Subscribed to DVM responses on ${subscribed} relays`)
         return subscribed > 0
@@ -311,10 +331,11 @@ export class NostrClient {
 
         const { requestType, threatLevel, maxResults, useCase, context, currentRelays } = requestData
 
-        // Build request event
+        // Build request event - FIXED: Added missing pubkey property
         const requestEvent = {
             kind: 5600, // DVM request kind
             created_at: Math.floor(Date.now() / 1000),
+            pubkey: this.publicKey, // ← This was missing and causing the error!
             tags: [
                 ['p', this.dvmPublicKey], // DVM public key
                 ['param', 'request_type', requestType],
@@ -335,6 +356,26 @@ export class NostrClient {
 
         // Add client info for better DVM responses
         requestEvent.tags.push(['client', 'relay-shadow-client', '1.0.0'])
+
+        // Validate event before signing
+        console.log('🔍 Event validation before signing:')
+        const requiredProps = ['kind', 'created_at', 'pubkey', 'tags', 'content']
+        const missingProps = requiredProps.filter(prop =>
+            requestEvent[prop] === undefined || requestEvent[prop] === null
+        )
+
+        if (missingProps.length > 0) {
+            console.error('❌ Missing required properties:', missingProps)
+            throw new Error(`Event missing required properties: ${missingProps.join(', ')}`)
+        }
+
+        // Check pubkey format (should be 64 character hex)
+        if (!/^[a-f0-9]{64}$/i.test(requestEvent.pubkey)) {
+            console.error('❌ Invalid pubkey format:', requestEvent.pubkey)
+            throw new Error('Event pubkey should be 64 character hex string')
+        }
+
+        console.log('✅ Event validation passed')
 
         // Sign the event
         let signedEvent
@@ -421,74 +462,28 @@ export class NostrClient {
         })
     }
 
-    async waitForResponse(timeoutMs = 30000) {
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error(`Timeout waiting for DVM response (${timeoutMs}ms)`))
-            }, timeoutMs)
-
-            // Set up one-time response handler
-            const originalOnResponse = this.onResponse
-            this.onResponse = (response) => {
-                clearTimeout(timeout)
-                this.onResponse = originalOnResponse // Restore original handler
-
-                // Call original handler if it exists
-                if (originalOnResponse) {
-                    originalOnResponse(response)
-                }
-
-                resolve(response)
-            }
-        })
-    }
-
     async disconnect() {
-        console.log('🔌 Disconnecting from relays...')
+        console.log('🔌 Disconnecting from all relays...')
 
-        // Clear pending callbacks
+        for (const [url, ws] of this.connections.entries()) {
+            try {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.close(1000, 'Client disconnect')
+                }
+            } catch (error) {
+                console.warn(`Error closing connection to ${url}:`, error)
+            }
+        }
+
+        this.connections.clear()
+        this.subscriptions.clear()
+        this.pendingRequests.clear()
         this.eventCallbacks.clear()
 
-        // Close subscriptions
-        for (const [subId] of this.subscriptions) {
-            Array.from(this.connections.values()).forEach(ws => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    try {
-                        ws.send(JSON.stringify(['CLOSE', subId]))
-                    } catch (error) {
-                        console.warn('Error closing subscription:', error)
-                    }
-                }
-            })
-        }
-        this.subscriptions.clear()
-
-        // Close connections
-        Array.from(this.connections.values()).forEach(ws => {
-            try {
-                ws.close(1000, 'Client disconnecting')
-            } catch (error) {
-                console.warn('Error closing connection:', error)
-            }
-        })
-        this.connections.clear()
-
-        console.log('👋 Disconnected from all relays')
-
-        // Notify connection change
         if (this.onConnectionChange) {
             this.onConnectionChange(this.getConnectionStatus())
         }
-    }
 
-    getConnectionStatus() {
-        const connectedRelays = Array.from(this.connections.keys())
-        return {
-            total: this.relays.length,
-            connected: this.connections.size,
-            relays: connectedRelays,
-            method: this.useAlby ? 'Alby Wallet' : 'Manual Key',
-            isReady: this.isReady()
-        }
+        console.log('🔌 Disconnected from all relays')
     }
 }
