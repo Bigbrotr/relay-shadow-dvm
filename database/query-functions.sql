@@ -1,6 +1,6 @@
 -- Fast query functions for the DVM (FIXED VERSION)
 
--- 1. Get personalized relay recommendations for a user
+-- 1. Get personalized relay recommendations for a user (FIXED VERSION)
 CREATE OR REPLACE FUNCTION get_user_relay_recommendations(
     user_pubkey TEXT,
     threat_level TEXT DEFAULT 'medium',
@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION get_user_relay_recommendations(
 BEGIN
     RETURN QUERY
     WITH user_following AS (
-        -- Get users that this user follows
+        -- FIXED: Get users that this user follows - removed problematic ORDER BY with DISTINCT
         SELECT DISTINCT (tag->>1)::TEXT as followed_pubkey
         FROM events e,
              jsonb_array_elements(e.tags) as tag
@@ -26,7 +26,6 @@ BEGIN
           AND e.kind = 3
           AND tag->>0 = 'p'
           AND LENGTH(tag->>1) = 64  -- Valid pubkey length
-        ORDER BY e.created_at DESC
         LIMIT 1000  -- Limit to avoid huge following lists
     ),
     following_relay_stats AS (
@@ -55,11 +54,11 @@ BEGIN
             
             -- Adjust score based on threat level
             CASE threat_level
-                WHEN 'low' THEN rr.overall_score + (rr.performance_score * 0.2)
-                WHEN 'medium' THEN rr.overall_score + (rr.privacy_score * 0.1)
-                WHEN 'high' THEN (rr.privacy_score * 0.4) + (rr.reliability_score * 0.3) + (rr.performance_score * 0.3)
-                WHEN 'nation-state' THEN (rr.privacy_score * 0.6) + (rr.reliability_score * 0.4)
-                ELSE rr.overall_score
+                WHEN 'low' THEN rr.overall_score + (COALESCE(rr.performance_score, 0) * 0.2)
+                WHEN 'medium' THEN rr.overall_score + (COALESCE(rr.privacy_score, 0) * 0.1)
+                WHEN 'high' THEN (COALESCE(rr.privacy_score, 0) * 0.4) + (COALESCE(rr.reliability_score, 0) * 0.3) + (COALESCE(rr.performance_score, 0) * 0.3)
+                WHEN 'nation-state' THEN (COALESCE(rr.privacy_score, 0) * 0.6) + (COALESCE(rr.reliability_score, 0) * 0.4)
+                ELSE COALESCE(rr.overall_score, 0)
             END as threat_adjusted_score,
             
             -- Following network bonus (if enabled)
@@ -71,20 +70,22 @@ BEGIN
             
         FROM relay_recommendations rr
         LEFT JOIN following_relay_stats frs ON rr.url = frs.relay_url
-        WHERE rr.current_status = true
+        WHERE rr.current_status = true OR rr.current_status IS NULL  -- Include relays without status
           AND (
               CASE threat_level
-                  WHEN 'high' THEN rr.privacy_score > 6.0 AND rr.reliability_score > 7.0
-                  WHEN 'nation-state' THEN rr.privacy_score > 8.0 AND rr.reliability_score > 8.0
-                  ELSE rr.reliability_score > 5.0
+                  WHEN 'low' THEN COALESCE(rr.reliability_score, 0) > 3.0
+                  WHEN 'medium' THEN COALESCE(rr.privacy_score, 0) > 2.0 AND COALESCE(rr.reliability_score, 0) > 3.0  
+                  WHEN 'high' THEN COALESCE(rr.privacy_score, 0) > 3.0 AND COALESCE(rr.reliability_score, 0) > 4.0
+                  WHEN 'nation-state' THEN COALESCE(rr.privacy_score, 0) > 4.0 AND COALESCE(rr.reliability_score, 0) > 5.0
+                  ELSE COALESCE(rr.reliability_score, 0) > 1.0
               END
           )
     )
     SELECT 
         sr.url,
         ROUND(sr.threat_adjusted_score + sr.following_bonus, 2) as overall_score,
-        ROUND(sr.privacy_score, 2) as privacy_score,
-        ROUND(sr.reliability_score, 2) as reliability_score,
+        ROUND(COALESCE(sr.privacy_score, 0), 2) as privacy_score,
+        ROUND(COALESCE(sr.reliability_score, 0), 2) as reliability_score,
         sr.following_users_count,
         ROUND(sr.total_influence_weight, 2) as total_influence_weight,
         
@@ -92,11 +93,11 @@ BEGIN
         CASE 
             WHEN sr.following_users_count > 5 THEN 
                 format('High quality relay used by %s of your followed users', sr.following_users_count)
-            WHEN sr.privacy_score > 8.0 THEN 
+            WHEN COALESCE(sr.privacy_score, 0) > 8.0 THEN 
                 'Excellent privacy protections and transparency'
-            WHEN sr.reliability_score > 8.0 AND sr.performance_score > 7.0 THEN 
+            WHEN COALESCE(sr.reliability_score, 0) > 8.0 AND COALESCE(sr.performance_score, 0) > 7.0 THEN 
                 'Highly reliable with excellent performance'
-            WHEN sr.diversity_score > 7.0 THEN 
+            WHEN COALESCE(sr.diversity_score, 0) > 7.0 THEN 
                 'Good network diversity with quality publishers'
             ELSE 
                 'Solid overall performance across all metrics'

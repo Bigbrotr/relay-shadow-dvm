@@ -1,39 +1,45 @@
+// Fixed NostrClient with improved send/receive for DVM requests
+// src/client/src/lib/nostr-client.js
+
 import { generatePrivateKey, getPublicKey, finishEvent, validateEvent } from 'nostr-tools'
 
 export class NostrClient {
-    constructor(privateKey, dvmPublicKey, signFunction = null, albyPublicKey = null) {
-        // Handle different connection methods
-        if (signFunction && albyPublicKey) {
-            // Alby connection
-            this.useAlby = true
-            this.signFunction = signFunction
-            this.publicKey = albyPublicKey
-            this.privateKey = null
-        } else {
-            // Manual connection
-            this.useAlby = false
-            this.privateKey = privateKey
-            this.publicKey = getPublicKey(privateKey)
-            this.signFunction = null
-        }
-
+    constructor(dvmPublicKey, options = {}) {
         this.dvmPublicKey = dvmPublicKey
+        this.useAlby = options.useAlby || false
+        this.signFunction = options.signFunction || null
+
+        // Generate or use provided keys
+        this.privateKey = options.privateKey || generatePrivateKey()
+        this.publicKey = getPublicKey(this.privateKey)
+
+        // Connection management
         this.connections = new Map()
         this.subscriptions = new Map()
-        this.onResponse = null
-        this.onError = null
+        this.pendingRequests = new Map() // Track pending requests for timeout handling
+        this.eventCallbacks = new Map() // Track callbacks for specific events
+
+        // Event handlers
+        this.onResponse = options.onResponse || null
+        this.onError = options.onError || null
+        this.onConnectionChange = options.onConnectionChange || null
 
         // Default relays
-        this.relays = [
+        this.relays = options.relays || [
             'wss://relay.damus.io',
             'wss://relay.snort.social',
             'wss://nos.lol',
+            'wss://relay.nostr.band'
         ]
 
-        console.log('🔮 NostrClient initialized')
-        console.log('📡 Client pubkey:', this.publicKey)
-        console.log('🎯 DVM pubkey:', this.dvmPublicKey)
-        console.log('🔐 Connection method:', this.useAlby ? 'Alby Wallet' : 'Manual Key')
+        console.log(`🔧 NostrClient initialized`)
+        console.log(`📡 Client pubkey: ${this.publicKey}`)
+        console.log(`🎯 Target DVM: ${this.dvmPublicKey}`)
+        console.log(`🔐 Auth method: ${this.useAlby ? 'Alby Wallet' : 'Manual Key'}`)
+    }
+
+    isReady() {
+        return this.connections.size > 0
     }
 
     async connect() {
@@ -49,8 +55,14 @@ export class NostrClient {
             throw new Error('Failed to connect to any relays')
         }
 
-        // Subscribe to DVM responses
+        // Subscribe to DVM responses after connecting
         await this.subscribeToResponses()
+
+        // Notify connection change
+        if (this.onConnectionChange) {
+            this.onConnectionChange(this.getConnectionStatus())
+        }
+
         return connected
     }
 
@@ -59,9 +71,11 @@ export class NostrClient {
             try {
                 const ws = new WebSocket(relayUrl)
                 const timeout = setTimeout(() => {
-                    ws.close()
-                    reject(new Error(`Connection timeout: ${relayUrl}`))
-                }, 15000) // Increased timeout to 15 seconds
+                    if (ws.readyState === WebSocket.CONNECTING) {
+                        ws.close()
+                        reject(new Error(`Connection timeout: ${relayUrl}`))
+                    }
+                }, 15000)
 
                 ws.onopen = () => {
                     clearTimeout(timeout)
@@ -82,7 +96,21 @@ export class NostrClient {
 
                 ws.onclose = (event) => {
                     this.connections.delete(relayUrl)
-                    console.log(`  ⚠ Disconnected from ${relayUrl} (${event.code})`)
+                    console.log(`  ⚠ Disconnected from ${relayUrl} (code: ${event.code})`)
+
+                    // Notify connection change
+                    if (this.onConnectionChange) {
+                        this.onConnectionChange(this.getConnectionStatus())
+                    }
+
+                    // Attempt reconnection after delay if not intentional close
+                    if (event.code !== 1000 && event.code !== 1001) {
+                        setTimeout(() => {
+                            this.connectToRelay(relayUrl).catch(() => {
+                                console.log(`Failed to reconnect to ${relayUrl}`)
+                            })
+                        }, 5000)
+                    }
                 }
 
             } catch (error) {
@@ -94,38 +122,33 @@ export class NostrClient {
     handleMessage(relayUrl, message) {
         try {
             const parsed = JSON.parse(message)
-            const [messageType, subscriptionId, event] = parsed
+
+            // Handle different message array lengths
+            if (!Array.isArray(parsed) || parsed.length < 2) {
+                console.warn(`Invalid message format from ${relayUrl}:`, parsed)
+                return
+            }
+
+            const [messageType, ...args] = parsed
 
             switch (messageType) {
                 case 'EVENT':
-                    if (this.isDVMResponse(event)) {
-                        console.log(`📨 Received DVM response from ${relayUrl}`)
-                        this.handleDVMResponse(event)
-                    }
-                    break
-                case 'NOTICE':
-                    console.log(`📢 Notice from ${relayUrl}:`, subscriptionId)
-                    if (this.onError) {
-                        this.onError(new Error(`Relay notice: ${subscriptionId}`))
-                    }
-                    break
-                case 'EOSE':
-                    console.log(`📄 End of stored events from ${relayUrl}`)
+                    this.handleEventMessage(relayUrl, args)
                     break
                 case 'OK':
-                    const [, eventId, accepted, reason] = parsed
-                    if (accepted) {
-                        console.log(`✅ Event accepted by ${relayUrl}:`, eventId?.substring(0, 8))
-                    } else {
-                        console.log(`❌ Event rejected by ${relayUrl}:`, reason)
-                        if (this.onError) {
-                            this.onError(new Error(`Event rejected by ${relayUrl}: ${reason}`))
-                        }
-                    }
+                    this.handleOkMessage(relayUrl, args)
+                    break
+                case 'NOTICE':
+                    this.handleNoticeMessage(relayUrl, args)
+                    break
+                case 'EOSE':
+                    this.handleEoseMessage(relayUrl, args)
                     break
                 case 'AUTH':
-                    console.log(`🔐 Auth challenge from ${relayUrl}`)
-                    // Handle AUTH if needed in the future
+                    this.handleAuthMessage(relayUrl, args)
+                    break
+                case 'CLOSED':
+                    this.handleClosedMessage(relayUrl, args)
                     break
                 default:
                     console.log(`❓ Unknown message type from ${relayUrl}:`, messageType)
@@ -136,12 +159,84 @@ export class NostrClient {
         }
     }
 
+    handleEventMessage(relayUrl, args) {
+        if (args.length < 2) {
+            console.warn(`Invalid EVENT message from ${relayUrl}`)
+            return
+        }
+
+        const [subscriptionId, event] = args
+
+        if (this.isDVMResponse(event)) {
+            console.log(`📨 Received DVM response from ${relayUrl}`)
+            this.handleDVMResponse(event)
+        }
+    }
+
+    handleOkMessage(relayUrl, args) {
+        if (args.length < 2) {
+            console.warn(`Invalid OK message from ${relayUrl}`)
+            return
+        }
+
+        const [eventId, accepted, reason] = args
+
+        if (accepted) {
+            console.log(`✅ Event accepted by ${relayUrl}: ${eventId?.substring(0, 8)}`)
+
+            // Resolve any pending requests for this event
+            if (this.eventCallbacks.has(eventId)) {
+                const callback = this.eventCallbacks.get(eventId)
+                callback.resolve({ relayUrl, accepted: true })
+                this.eventCallbacks.delete(eventId)
+            }
+        } else {
+            console.log(`❌ Event rejected by ${relayUrl}: ${reason || 'Unknown reason'}`)
+
+            // Reject any pending requests for this event
+            if (this.eventCallbacks.has(eventId)) {
+                const callback = this.eventCallbacks.get(eventId)
+                callback.reject(new Error(`Event rejected by ${relayUrl}: ${reason}`))
+                this.eventCallbacks.delete(eventId)
+            }
+
+            if (this.onError) {
+                this.onError(new Error(`Event rejected by ${relayUrl}: ${reason}`))
+            }
+        }
+    }
+
+    handleNoticeMessage(relayUrl, args) {
+        const [notice] = args
+        console.log(`📢 Notice from ${relayUrl}: ${notice}`)
+
+        if (this.onError) {
+            this.onError(new Error(`Relay notice from ${relayUrl}: ${notice}`))
+        }
+    }
+
+    handleEoseMessage(relayUrl, args) {
+        const [subscriptionId] = args
+        console.log(`📄 End of stored events from ${relayUrl} for subscription ${subscriptionId}`)
+    }
+
+    handleAuthMessage(relayUrl, args) {
+        const [challenge] = args
+        console.log(`🔐 Auth challenge from ${relayUrl}: ${challenge}`)
+        // TODO: Implement AUTH handling if needed
+    }
+
+    handleClosedMessage(relayUrl, args) {
+        const [subscriptionId, reason] = args
+        console.log(`🚫 Subscription closed by ${relayUrl}: ${subscriptionId} - ${reason}`)
+    }
+
     isDVMResponse(event) {
-        if (event.kind !== 6600) return false // Not a DVM response
+        if (!event || event.kind !== 6600) return false
 
         // Check if addressed to us
-        const isForUs = event.tags.some(tag =>
-            tag[0] === 'p' && tag[1] === this.publicKey
+        const isForUs = event.tags && event.tags.some(tag =>
+            Array.isArray(tag) && tag.length >= 2 && tag[0] === 'p' && tag[1] === this.publicKey
         )
 
         return isForUs
@@ -150,14 +245,26 @@ export class NostrClient {
     handleDVMResponse(event) {
         if (this.onResponse) {
             try {
-                const responseData = JSON.parse(event.content)
+                // Parse response content
+                let responseData
+                try {
+                    responseData = JSON.parse(event.content)
+                } catch (e) {
+                    // If content isn't JSON, treat as plain text
+                    responseData = {
+                        type: 'text_response',
+                        content: event.content
+                    }
+                }
+
                 this.onResponse({
                     ...responseData,
                     _meta: {
                         eventId: event.id,
                         timestamp: event.created_at,
                         dvmPubkey: event.pubkey,
-                        receivedAt: Date.now()
+                        receivedAt: Date.now(),
+                        tags: event.tags
                     }
                 })
             } catch (error) {
@@ -181,13 +288,20 @@ export class NostrClient {
 
         const subscribeMessage = ['REQ', subscriptionId, subscription]
 
+        let subscribed = 0
         Array.from(this.connections.values()).forEach(ws => {
             if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(subscribeMessage))
+                try {
+                    ws.send(JSON.stringify(subscribeMessage))
+                    subscribed++
+                } catch (error) {
+                    console.warn('Failed to send subscription:', error)
+                }
             }
         })
 
-        console.log('👂 Subscribed to DVM responses')
+        console.log(`👂 Subscribed to DVM responses on ${subscribed} relays`)
+        return subscribed > 0
     }
 
     async sendRequest(requestData) {
@@ -197,6 +311,7 @@ export class NostrClient {
 
         const { requestType, threatLevel, maxResults, useCase, context, currentRelays } = requestData
 
+        // Build request event
         const requestEvent = {
             kind: 5600, // DVM request kind
             created_at: Math.floor(Date.now() / 1000),
@@ -207,7 +322,6 @@ export class NostrClient {
                 ['param', 'max_results', String(maxResults || 10)]
             ],
             content: context || `Request ${requestType} with threat level ${threatLevel}`,
-            pubkey: this.publicKey
         }
 
         // Add optional parameters
@@ -226,11 +340,9 @@ export class NostrClient {
         let signedEvent
         try {
             if (this.useAlby && this.signFunction) {
-                // Use Alby for signing
                 console.log('🔐 Signing with Alby...')
                 signedEvent = await this.signFunction(requestEvent)
             } else {
-                // Use manual signing
                 signedEvent = finishEvent(requestEvent, this.privateKey)
             }
 
@@ -243,16 +355,26 @@ export class NostrClient {
             throw new Error(`Failed to sign event: ${error.message}`)
         }
 
-        // Send to all connected relays
+        // Send to all connected relays with improved error handling
         const publishPromises = Array.from(this.connections.entries()).map(([url, ws]) => {
             return this.publishEventToRelay(ws, signedEvent, url)
         })
 
         const results = await Promise.allSettled(publishPromises)
         const successful = results.filter(r => r.status === 'fulfilled').length
+        const failed = results.filter(r => r.status === 'rejected')
 
         console.log(`📤 Request sent to ${successful}/${this.connections.size} relays`)
         console.log(`🔍 Request ID: ${signedEvent.id}`)
+
+        // Log any failures
+        if (failed.length > 0) {
+            console.warn(`⚠️ Failed to send to ${failed.length} relays:`)
+            failed.forEach((result, index) => {
+                const relayUrl = Array.from(this.connections.keys())[index]
+                console.warn(`  - ${relayUrl}: ${result.reason?.message}`)
+            })
+        }
 
         if (successful === 0) {
             throw new Error('Failed to send request to any relay')
@@ -264,7 +386,7 @@ export class NostrClient {
     async publishEventToRelay(ws, event, relayUrl) {
         return new Promise((resolve, reject) => {
             if (ws.readyState !== WebSocket.OPEN) {
-                reject(new Error(`Relay ${relayUrl} not connected`))
+                reject(new Error(`Relay ${relayUrl} not connected (state: ${ws.readyState})`))
                 return
             }
 
@@ -273,34 +395,24 @@ export class NostrClient {
                 ws.send(JSON.stringify(eventMessage))
                 console.log(`  → Sent to ${relayUrl}`)
 
-                // Set up a timeout for the OK response
+                // Set up callback for OK response
                 const timeout = setTimeout(() => {
+                    this.eventCallbacks.delete(event.id)
                     console.log(`  ⏰ Timeout waiting for OK from ${relayUrl}`)
                     resolve() // Don't reject on timeout, just resolve
-                }, 5000)
+                }, 10000)
 
-                // Listen for OK response (this is simplified - in production you'd track this better)
-                const originalOnMessage = ws.onmessage
-                ws.onmessage = (messageEvent) => {
-                    // Call original handler first
-                    if (originalOnMessage) {
-                        originalOnMessage(messageEvent)
+                // Store callback for this event
+                this.eventCallbacks.set(event.id, {
+                    resolve: () => {
+                        clearTimeout(timeout)
+                        resolve()
+                    },
+                    reject: (error) => {
+                        clearTimeout(timeout)
+                        reject(error)
                     }
-
-                    try {
-                        const [messageType, eventId, accepted] = JSON.parse(messageEvent.data)
-                        if (messageType === 'OK' && eventId === event.id) {
-                            clearTimeout(timeout)
-                            if (accepted) {
-                                resolve()
-                            } else {
-                                reject(new Error(`Event rejected by ${relayUrl}`))
-                            }
-                        }
-                    } catch (e) {
-                        // Ignore parsing errors for other messages
-                    }
-                }
+                })
 
             } catch (error) {
                 console.error(`Failed to send to ${relayUrl}:`, error)
@@ -309,8 +421,33 @@ export class NostrClient {
         })
     }
 
+    async waitForResponse(timeoutMs = 30000) {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error(`Timeout waiting for DVM response (${timeoutMs}ms)`))
+            }, timeoutMs)
+
+            // Set up one-time response handler
+            const originalOnResponse = this.onResponse
+            this.onResponse = (response) => {
+                clearTimeout(timeout)
+                this.onResponse = originalOnResponse // Restore original handler
+
+                // Call original handler if it exists
+                if (originalOnResponse) {
+                    originalOnResponse(response)
+                }
+
+                resolve(response)
+            }
+        })
+    }
+
     async disconnect() {
         console.log('🔌 Disconnecting from relays...')
+
+        // Clear pending callbacks
+        this.eventCallbacks.clear()
 
         // Close subscriptions
         for (const [subId] of this.subscriptions) {
@@ -337,6 +474,11 @@ export class NostrClient {
         this.connections.clear()
 
         console.log('👋 Disconnected from all relays')
+
+        // Notify connection change
+        if (this.onConnectionChange) {
+            this.onConnectionChange(this.getConnectionStatus())
+        }
     }
 
     getConnectionStatus() {
@@ -346,70 +488,7 @@ export class NostrClient {
             connected: this.connections.size,
             relays: connectedRelays,
             method: this.useAlby ? 'Alby Wallet' : 'Manual Key',
-            publicKey: this.publicKey
+            isReady: this.isReady()
         }
-    }
-
-    // Helper method to check if client is ready
-    isReady() {
-        return this.connections.size > 0 && (this.privateKey || (this.useAlby && this.signFunction))
-    }
-
-    // Method to get relay performance stats
-    getRelayStats() {
-        const stats = {}
-        for (const [url, ws] of this.connections) {
-            stats[url] = {
-                connected: ws.readyState === WebSocket.OPEN,
-                readyState: ws.readyState,
-                url: ws.url
-            }
-        }
-        return stats
-    }
-
-    // Method to add additional relays
-    async addRelay(relayUrl) {
-        if (!this.relays.includes(relayUrl)) {
-            this.relays.push(relayUrl)
-            try {
-                await this.connectToRelay(relayUrl)
-                console.log(`✅ Added and connected to ${relayUrl}`)
-                return true
-            } catch (error) {
-                console.error(`❌ Failed to connect to new relay ${relayUrl}:`, error)
-                return false
-            }
-        }
-        return false
-    }
-
-    // Method to remove relays
-    removeRelay(relayUrl) {
-        const ws = this.connections.get(relayUrl)
-        if (ws) {
-            ws.close()
-            this.connections.delete(relayUrl)
-        }
-        this.relays = this.relays.filter(r => r !== relayUrl)
-        console.log(`🗑️ Removed relay ${relayUrl}`)
-    }
-
-    // Method to reconnect to all relays
-    async reconnectAll() {
-        console.log('🔄 Reconnecting to all relays...')
-
-        // Close existing connections
-        Array.from(this.connections.values()).forEach(ws => {
-            try {
-                ws.close()
-            } catch (error) {
-                console.warn('Error closing connection during reconnect:', error)
-            }
-        })
-        this.connections.clear()
-
-        // Reconnect
-        return await this.connect()
     }
 }

@@ -206,7 +206,10 @@ CREATE INDEX IF NOT EXISTS idx_relay_publisher_weights_pubkey ON relay_publisher
 CREATE INDEX IF NOT EXISTS idx_relay_quality_scores_url ON relay_quality_scores(url);
 
 -- 6. Create a materialized view for quick user-relay recommendations
-CREATE MATERIALIZED VIEW IF NOT EXISTS relay_recommendations AS
+-- Drop the view first if it exists to ensure we get the updated version
+DROP MATERIALIZED VIEW IF EXISTS relay_recommendations;
+
+CREATE MATERIALIZED VIEW relay_recommendations AS
 SELECT 
     rqs.url,
     -- Overall quality score (weighted average)
@@ -227,7 +230,7 @@ SELECT
     rqs.activity_score,
     rqs.publisher_quality_score,
     
-    -- Relay stats
+    -- Relay stats from analytics
     ra.total_events,
     ra.unique_publishers,
     ra.events_per_day,
@@ -244,8 +247,24 @@ SELECT
 
 FROM relay_quality_scores rqs
 JOIN relay_analytics ra ON rqs.url = ra.url
-WHERE ra.current_status = true  -- Only include currently working relays
+WHERE ra.current_status = true OR ra.current_status IS NULL  -- Include relays without metadata status
 ORDER BY overall_score DESC;
 
--- Refresh the materialized view
+-- Create indexes on the materialized view for faster queries
+CREATE INDEX IF NOT EXISTS idx_relay_recommendations_overall_score 
+    ON relay_recommendations(overall_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_relay_recommendations_privacy_score 
+    ON relay_recommendations(privacy_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_relay_recommendations_reliability_score 
+    ON relay_recommendations(reliability_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_relay_recommendations_current_status 
+    ON relay_recommendations(current_status);
+
+CREATE INDEX IF NOT EXISTS idx_relay_recommendations_url 
+    ON relay_recommendations(url);
+
+-- Refresh the materialized view with data
 REFRESH MATERIALIZED VIEW relay_recommendations;
