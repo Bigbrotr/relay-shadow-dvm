@@ -1,298 +1,225 @@
 {
   "general_user": [
     {
-      "relay_url": "wss://relay.lumina.rocks",
-      "overall_score": "9.49",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://new.nos.social",
+      "overall_score": "7.84",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostr.me/relay",
-      "overall_score": "9.48",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://realy.nos.social",
+      "overall_score": "7.81",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://offchain.pub",
-      "overall_score": "9.47",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://ithurtswhenip.ee",
+      "overall_score": "7.80",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostr.data.haus",
-      "overall_score": "9.45",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://nostr.2b9t.xyz",
+      "overall_score": "7.79",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://profiles.nostr1.com",
-      "overall_score": "9.43",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://orangepiller.org",
+      "overall_score": "7.79",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://il.purplerelay.com",
-      "overall_score": "9.40",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://relay.corpum.com",
+      "overall_score": "7.79",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://ir.purplerelay.com",
-      "overall_score": "9.40",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://nostr-2.21crypto.ch",
+      "overall_score": "7.79",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://relay.nostr.net",
-      "overall_score": "9.33",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://slick.mjex.me",
+      "overall_score": "7.79",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     }
   ],
   "privacy_focused": [
     {
-      "relay_url": "wss://nostr.wine",
-      "overall_score": "9.92",
-      "privacy_score": "10.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://btc.klendazu.com",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Excellent privacy protections and transparency"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostrwinemdptvqukjttinajfeedhf46hfd5bz2aj2q5uwp7zros3nad.onion",
-      "overall_score": "9.46",
-      "privacy_score": "10.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://cobrafuma.com/relay",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Excellent privacy protections and transparency"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostrland2gdw7g3y77ctftovvil76vquipymo7tsctlxpiwknevzfid.onion",
-      "overall_score": "8.71",
-      "privacy_score": "7.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://dave.st.germa.in/nostr",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://wheat.happytavern.co",
-      "overall_score": "8.03",
-      "privacy_score": "10.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://ditto.pub/relay",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Excellent privacy protections and transparency"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostr-verif.slothy.win",
-      "overall_score": "8.00",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://freelay.sovbit.host",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://staging.yabu.me",
-      "overall_score": "8.00",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://gleasonator.dev/relay",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://ae.purplerelay.com",
-      "overall_score": "7.97",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://ithurtswhenip.ee",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://il.purplerelay.com",
-      "overall_score": "7.96",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://a.nos.lol",
+      "overall_score": "5.20",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     }
   ],
   "social_user": [
     {
-      "relay_url": "wss://relay.lumina.rocks",
-      "overall_score": "10.96",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://new.nos.social",
+      "overall_score": "8.44",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostr.me/relay",
-      "overall_score": "10.95",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://realy.nos.social",
+      "overall_score": "8.41",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://nostr.data.haus",
-      "overall_score": "10.91",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://ithurtswhenip.ee",
+      "overall_score": "8.40",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://il.purplerelay.com",
-      "overall_score": "10.88",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://nostr.2b9t.xyz",
+      "overall_score": "8.39",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://ir.purplerelay.com",
-      "overall_score": "10.87",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://orangepiller.org",
+      "overall_score": "8.39",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://profiles.nostr1.com",
-      "overall_score": "10.82",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://relay.corpum.com",
+      "overall_score": "8.39",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://offchain.pub",
-      "overall_score": "10.80",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://nostr-2.21crypto.ch",
+      "overall_score": "8.39",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     },
     {
-      "relay_url": "wss://relay.nostr.net",
-      "overall_score": "10.80",
-      "privacy_score": "5.00",
-      "reliability_score": "10.00",
+      "relay_url": "wss://slick.mjex.me",
+      "overall_score": "8.39",
+      "privacy_score": "4.00",
+      "reliability_score": "7.00",
       "following_users_count": "0",
       "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
+      "reasoning": "Solid overall performance across all metrics"
     }
   ],
-  "journalist": [
-    {
-      "relay_url": "wss://nostr.wine",
-      "overall_score": "10.00",
-      "privacy_score": "10.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Excellent privacy protections and transparency"
-    },
-    {
-      "relay_url": "wss://wheat.happytavern.co",
-      "overall_score": "10.00",
-      "privacy_score": "10.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Excellent privacy protections and transparency"
-    },
-    {
-      "relay_url": "wss://nostrwinemdptvqukjttinajfeedhf46hfd5bz2aj2q5uwp7zros3nad.onion",
-      "overall_score": "10.00",
-      "privacy_score": "10.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Excellent privacy protections and transparency"
-    },
-    {
-      "relay_url": "wss://eden.nostr.land",
-      "overall_score": "8.20",
-      "privacy_score": "7.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Solid overall performance across all metrics"
-    },
-    {
-      "relay_url": "wss://nostr.land",
-      "overall_score": "8.20",
-      "privacy_score": "7.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Solid overall performance across all metrics"
-    },
-    {
-      "relay_url": "wss://chorus.mikedilger.com:444",
-      "overall_score": "8.20",
-      "privacy_score": "7.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Solid overall performance across all metrics"
-    },
-    {
-      "relay_url": "wss://nostrland2gdw7g3y77ctftovvil76vquipymo7tsctlxpiwknevzfid.onion",
-      "overall_score": "8.20",
-      "privacy_score": "7.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Highly reliable with excellent performance"
-    },
-    {
-      "relay_url": "wss://puravida.nostr.land",
-      "overall_score": "8.20",
-      "privacy_score": "7.00",
-      "reliability_score": "10.00",
-      "following_users_count": "0",
-      "total_influence_weight": "0.00",
-      "reasoning": "Solid overall performance across all metrics"
-    }
-  ]
+  "journalist": []
 }
